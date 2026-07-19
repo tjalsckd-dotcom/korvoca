@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mi vocabulario coreano</title>
+  <title>Mi vocabulario coreano · etiquetas compartidas</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -581,7 +581,7 @@
       <div id="tagFilters"></div>
 
       <div id="studentNote" class="sidebar-note hidden">
-        Puedes consultar las palabras y practicar. Solo el profesor puede añadir, editar o eliminar vocabulario.
+        Puedes consultar las palabras, practicar y añadir etiquetas compartidas. Solo el profesor puede cambiar la palabra, el significado o la categoría gramatical.
       </div>
     </aside>
 
@@ -685,6 +685,7 @@
     const PROFILES_TABLE = "profiles";
     const QUIZ_PROGRESS_TABLE = "korean_vocab_quiz_progress";
     const QUIZ_ATTEMPTS_TABLE = "korean_vocab_quiz_attempts";
+    const SHARED_TAGS_TABLE = "korean_vocab_shared_tags";
     const STUDENT_EMAIL_SUFFIX = "@korean-class.example.com";
     const QUIZ_TARGET = { es_to_ko: 0.85, ko_to_es: 0.80 };
 
@@ -735,6 +736,7 @@
     let currentProfile = null;
     let isTeacher = false;
     let cards = [];
+    let sharedTagRows = [];
     let selectedId = null;
     let selectedWordClass = "all";
     let selectedPos = "all";
@@ -766,13 +768,26 @@
       return String(value || "").trim().toLocaleLowerCase("ko-KR").replace(/\s+/g, " ");
     }
 
+    function normalizeTag(value) {
+      return String(value || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLocaleLowerCase("es");
+    }
+
     function parseTags(value) {
-      return [...new Set(
-        String(value || "")
-          .split(/[,;\n]/)
-          .map(tag => tag.trim())
-          .filter(Boolean)
-      )];
+      const source = Array.isArray(value) ? value : String(value || "").split(/[,;\n]/);
+      const result = [];
+      const seen = new Set();
+      for (const rawTag of source) {
+        const tag = String(rawTag || "").trim().replace(/\s+/g, " ").slice(0, 40);
+        const key = normalizeTag(tag);
+        if (!tag || seen.has(key)) continue;
+        seen.add(key);
+        result.push(tag);
+        if (result.length >= 25) break;
+      }
+      return result;
     }
 
     function toAuthEmail(identity) {
@@ -921,6 +936,7 @@
         currentProfile = null;
         isTeacher = false;
         cards = [];
+        sharedTagRows = [];
         selectedId = null;
         quizProgress = [];
         quizProgressByKey = new Map();
@@ -945,11 +961,70 @@
       return result;
     }
 
+    async function fetchAllSharedTags() {
+      const pageSize = 1000;
+      let from = 0;
+      let result = [];
+      while (true) {
+        const { data, error } = await db
+          .from(SHARED_TAGS_TABLE)
+          .select("id, card_id, user_id, tag, created_at")
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        result = result.concat(data || []);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return result;
+    }
+
+    function mergeSharedTags(baseCards, rows) {
+      const sharedByCard = new Map();
+      rows.forEach(row => {
+        const key = String(row.card_id);
+        if (!sharedByCard.has(key)) sharedByCard.set(key, []);
+        sharedByCard.get(key).push(row.tag);
+      });
+
+      return baseCards.map(card => {
+        const baseTags = parseTags(card.tags || []);
+        const sharedTags = parseTags(sharedByCard.get(String(card.id)) || []);
+        const merged = [];
+        const seen = new Set();
+        [...baseTags, ...sharedTags].forEach(tag => {
+          const key = normalizeTag(tag);
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          merged.push(tag);
+        });
+        return {
+          ...card,
+          base_tags: baseTags,
+          shared_tags: sharedTags,
+          tags: merged
+        };
+      });
+    }
+
+    function getOwnSharedTags(cardId) {
+      if (!session?.user) return [];
+      return parseTags(
+        sharedTagRows
+          .filter(row => String(row.card_id) === String(cardId) && row.user_id === session.user.id)
+          .map(row => row.tag)
+      );
+    }
+
     async function loadCards() {
       if (!session) return;
       $("listStatus").textContent = "Cargando palabras desde Supabase…";
       try {
-        cards = await fetchAllCards();
+        const [baseCards, tagRows] = await Promise.all([
+          fetchAllCards(),
+          fetchAllSharedTags()
+        ]);
+        sharedTagRows = tagRows;
+        cards = mergeSharedTags(baseCards, sharedTagRows);
         if (selectedId && !findCard(selectedId)) selectedId = null;
         renderAll();
         const name = currentProfile?.display_name || displayIdentity(session.user);
@@ -1131,7 +1206,7 @@
       .editor{padding:26px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:14px}.field label{display:block;font-size:13px;font-weight:800;margin-bottom:6px}
       .field input,.field select{width:100%;border:1px solid #d0d5dd;border-radius:10px;padding:10px 11px;background:#fff;outline:none}
       .field input:focus,.field select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,87,213,.11)}
-      .hint{color:var(--muted);font-size:12px;margin-top:5px}.class-preview{padding:10px 11px;border-radius:10px;background:#f2f4f7;color:#475467;font-weight:800}
+      .hint{color:var(--muted);font-size:12px;margin-top:5px}.share-note{padding:12px 14px;margin-bottom:18px;border-radius:12px;background:#eef2ff;color:#344054;line-height:1.5;font-size:13px}.class-preview{padding:10px 11px;border-radius:10px;background:#f2f4f7;color:#475467;font-weight:800}
       .tag-wrap{margin-top:9px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#f9fafb}.tag-title{color:var(--muted);font-size:12px;font-weight:800;margin-bottom:7px}
       .tag-list{display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow:auto}.tag-button{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:999px;padding:5px 9px;font-size:12px}
       .tag-button:hover{border-color:var(--primary);background:#eef2ff}.tag-empty{color:var(--muted);font-size:12px}.editor-actions{display:flex;justify-content:flex-end;gap:8px}
@@ -1163,9 +1238,10 @@
 
       const tags = (card.tags || []).map(tag => `<span class="chip">#${escapeHtml(tag)}</span>`).join("");
       const teacherActions = isTeacher
-        ? `<button class="btn primary" type="button" onclick="window.opener.openEditorWindow('${escapeHtml(card.id)}')">Editar</button>
+        ? `<button class="btn primary" type="button" onclick="window.opener.openEditorWindow('${escapeHtml(card.id)}')">Editar palabra</button>
            <button class="btn danger" type="button" onclick="window.opener.deleteCardFromPopup('${escapeHtml(card.id)}')">Eliminar</button>`
         : "";
+      const sharedTagAction = `<button class="btn" type="button" onclick="window.opener.openSharedTagEditor('${escapeHtml(card.id)}')">Añadir etiquetas</button>`;
 
       win.document.getElementById("popupRoot").innerHTML = `
         <div class="wrap"><article class="card">
@@ -1179,9 +1255,84 @@
           </div>
           <div class="body">
             <div class="meaning">${escapeHtml(card.meaning_es || "—")}</div>
-            <div class="actions">${teacherActions}<button class="btn" type="button" onclick="window.close()">Cerrar</button></div>
+            <div class="actions">${sharedTagAction}${teacherActions}<button class="btn" type="button" onclick="window.close()">Cerrar</button></div>
           </div>
         </article></div>`;
+    }
+
+    function openSharedTagEditor(cardId) {
+      const card = findCard(cardId);
+      if (!card || !session?.user) return;
+      const win = ensureCardWindow(`Etiquetas · ${card.korean}`);
+      if (!win) return;
+
+      const ownTags = getOwnSharedTags(card.id);
+      const visibleTags = (card.tags || []).map(tag => `<span class="chip">#${escapeHtml(tag)}</span>`).join("");
+      win.document.getElementById("popupRoot").innerHTML = `
+        <div class="wrap"><form id="popupSharedTagForm" class="editor">
+          <h2>Etiquetas compartidas</h2>
+          <div class="meaning" style="font-size:22px;margin-bottom:14px">${escapeHtml(card.korean)} · ${escapeHtml(card.meaning_es || "")}</div>
+          <div class="share-note">
+            Las etiquetas que añadas serán visibles para toda la clase y aparecerán en la búsqueda y los filtros.
+            Puedes quitar únicamente las etiquetas que añadiste tú.
+          </div>
+          ${visibleTags ? `<div class="field"><label>Etiquetas visibles para la clase</label><div class="chips">${visibleTags}</div></div>` : ""}
+          <div class="field">
+            <label for="popupTags">Mis etiquetas para esta palabra</label>
+            <input id="popupTags" value="${escapeHtml(ownTags.join(", "))}" placeholder="Lección 1, difícil, examen" autocomplete="off">
+            <div class="hint">Separa varias etiquetas con comas. Máximo 25 etiquetas y 40 caracteres por etiqueta.</div>
+            <div class="tag-wrap"><div class="tag-title">Etiquetas usadas en la clase</div><div id="popupTagList" class="tag-list"></div></div>
+          </div>
+          <div class="editor-actions">
+            <button id="popupCancelBtn" type="button" class="btn">Cancelar</button>
+            <button type="submit" class="btn primary">Guardar etiquetas</button>
+          </div>
+        </form></div>`;
+
+      setupPopupTagRecommendations(win);
+      win.document.getElementById("popupSharedTagForm").addEventListener("submit", event => {
+        event.preventDefault();
+        saveSharedTagsFromPopup(card.id);
+      });
+      win.document.getElementById("popupCancelBtn").addEventListener("click", () => openDetailWindow(card.id));
+      win.document.getElementById("popupTags").focus();
+    }
+
+    async function saveSharedTagsFromPopup(cardId) {
+      if (!session?.user || !cardWindow || cardWindow.closed || busy) return;
+      const input = cardWindow.document.getElementById("popupTags");
+      const desiredTags = parseTags(input?.value || "");
+      const existingRows = sharedTagRows.filter(row =>
+        String(row.card_id) === String(cardId) && row.user_id === session.user.id
+      );
+      const desiredByKey = new Map(desiredTags.map(tag => [normalizeTag(tag), tag]));
+      const existingByKey = new Map(existingRows.map(row => [normalizeTag(row.tag), row]));
+      const deleteIds = existingRows
+        .filter(row => !desiredByKey.has(normalizeTag(row.tag)))
+        .map(row => row.id);
+      const inserts = desiredTags
+        .filter(tag => !existingByKey.has(normalizeTag(tag)))
+        .map(tag => ({ card_id: cardId, user_id: session.user.id, tag }));
+
+      setBusy(true);
+      try {
+        if (deleteIds.length) {
+          const { error } = await db.from(SHARED_TAGS_TABLE).delete().in("id", deleteIds);
+          if (error) throw error;
+        }
+        if (inserts.length) {
+          const { error } = await db.from(SHARED_TAGS_TABLE).insert(inserts);
+          if (error) throw error;
+        }
+        await loadCards();
+        showToast("Las etiquetas compartidas se actualizaron.");
+        openDetailWindow(cardId);
+      } catch (error) {
+        console.error(error);
+        showToast("No se pudieron guardar las etiquetas: " + (error.message || error), true);
+      } finally {
+        setBusy(false);
+      }
     }
 
     function openEditorWindow(cardId = null) {
@@ -1219,7 +1370,7 @@
           </div>
           <div class="field">
             <label for="popupTags">Etiquetas</label>
-            <input id="popupTags" value="${escapeHtml((card?.tags || []).join(", "))}" placeholder="Lección 1, escuela, básico" autocomplete="off">
+            <input id="popupTags" value="${escapeHtml((card?.base_tags || card?.tags || []).join(", "))}" placeholder="Lección 1, escuela, básico" autocomplete="off">
             <div class="hint">Separa varias etiquetas con comas.</div>
             <div class="tag-wrap"><div class="tag-title">Etiquetas existentes</div><div id="popupTagList" class="tag-list"></div></div>
           </div>
