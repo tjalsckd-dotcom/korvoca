@@ -1,0 +1,1905 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mi vocabulario coreano</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --line: #e4e7ec;
+      --text: #1d2430;
+      --muted: #667085;
+      --primary: #3157d5;
+      --primary-soft: #eef2ff;
+      --danger: #c93636;
+      --success: #16803c;
+      --shadow: 0 8px 28px rgba(16, 24, 40, .08);
+      --nominal: #2563eb;
+      --predicate: #e65e22;
+      --modifier: #7c3aed;
+      --relational: #0f8a77;
+      --independent: #b7791f;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    .hidden { display: none !important; }
+
+    .topbar {
+      height: 66px;
+      padding: 0 20px;
+      background: rgba(255,255,255,.96);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(12px);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 13px;
+      display: grid;
+      place-items: center;
+      background: #111827;
+      color: white;
+      font-weight: 900;
+      letter-spacing: -.03em;
+    }
+    .brand h1 { font-size: 18px; margin: 0; white-space: nowrap; }
+    .brand small { display: block; color: var(--muted); margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #f2f4f7;
+      color: var(--muted);
+      font-size: 13px;
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .role-pill {
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #ecfdf3;
+      color: #067647;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .role-pill.student { background: #eff4ff; color: #3538cd; }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      padding: 9px 13px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+    .btn:hover { background: #f9fafb; }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn.primary:hover { filter: brightness(.96); }
+    .btn.danger { color: var(--danger); border-color: #fecaca; }
+    .btn.small { padding: 6px 9px; font-size: 13px; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .auth-wrap {
+      min-height: calc(100vh - 66px);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .auth-card {
+      width: min(460px, 100%);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 30px;
+    }
+    .auth-card h2 { margin: 0 0 8px; }
+    .auth-card p { color: var(--muted); line-height: 1.55; }
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .field input, .field textarea, .field select {
+      width: 100%;
+      border: 1px solid #d0d5dd;
+      border-radius: 10px;
+      padding: 10px 11px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(49,87,213,.11);
+    }
+    .field textarea { min-height: 92px; resize: vertical; }
+    .auth-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .message {
+      margin-top: 14px;
+      padding: 11px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.45;
+      background: #f2f4f7;
+      color: var(--muted);
+    }
+    .message.error { background: #fef3f2; color: #b42318; }
+    .message.success { background: #ecfdf3; color: #067647; }
+    .auth-help { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+    .app {
+      height: calc(100vh - 66px);
+      display: grid;
+      grid-template-columns: 292px minmax(0, 1fr);
+    }
+    .sidebar, .list-pane {
+      min-width: 0;
+      overflow: auto;
+      background: #fff;
+    }
+    .sidebar { border-right: 1px solid var(--line); padding: 16px; }
+    .list-pane { overflow: auto; }
+    .section-title {
+      margin: 19px 0 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      color: var(--muted);
+      font-weight: 900;
+    }
+    .search { position: relative; margin-bottom: 12px; }
+    .search input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px 10px 36px;
+      background: #f9fafb;
+      outline: none;
+    }
+    .search span { position: absolute; left: 12px; top: 9px; color: var(--muted); }
+    .filter-button {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      border: 0;
+      border-radius: 9px;
+      padding: 8px 9px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+    }
+    .filter-button:hover, .filter-button.active { background: #f2f4f7; }
+    .filter-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .count { color: var(--muted); font-size: 12px; }
+    .tag-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #98a2b3;
+      display: inline-block;
+      margin-right: 7px;
+    }
+    .sidebar-actions { display: grid; gap: 8px; margin-top: 12px; }
+    .sidebar-note { margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .list-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: rgba(255,255,255,.97);
+      border-bottom: 1px solid var(--line);
+      padding: 14px;
+      backdrop-filter: blur(10px);
+    }
+    .list-header-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .list-header h2 { margin: 0; font-size: 17px; }
+    .sort-select {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 7px 8px;
+      background: #fff;
+      max-width: 165px;
+    }
+    .list-status { margin-top: 5px; color: var(--muted); font-size: 13px; }
+    .card-list {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 8px;
+      align-content: start;
+    }
+    .card-row {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      cursor: pointer;
+      background: #fff;
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    .card-row:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(16,24,40,.06); }
+    .card-row.active { border-color: #a4bcfd; background: var(--primary-soft); }
+    .card-row-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+    .korean-word {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -.015em;
+    }
+    .card-row-meaning {
+      color: #344054;
+      font-size: 13px;
+      margin-top: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .grammar-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 7px;
+      font-size: 10px;
+      font-weight: 900;
+      color: #fff;
+      flex: 0 0 auto;
+    }
+    .badge.nominal { background: var(--nominal); }
+    .badge.predicate { background: var(--predicate); }
+    .badge.modifier { background: var(--modifier); }
+    .badge.relational { background: var(--relational); }
+    .badge.independent { background: var(--independent); }
+    .pos-badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #d0d5dd;
+      border-radius: 999px;
+      padding: 3px 7px;
+      background: #fff;
+      color: #475467;
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .chip {
+      border: 0;
+      background: #f2f4f7;
+      color: #475467;
+      padding: 4px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+    .chip:hover { background: #e4e7ec; }
+    .empty-state {
+      min-height: 260px;
+      grid-column: 1 / -1;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      text-align: center;
+      padding: 30px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 300;
+      max-width: min(430px, calc(100vw - 36px));
+      padding: 12px 14px;
+      border-radius: 11px;
+      background: #111827;
+      color: #fff;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: .2s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: #912018; }
+
+    /* Quiz */
+    .quiz-launch {
+      width: 100%;
+      background: #111827;
+      border-color: #111827;
+      color: #fff;
+    }
+    .quiz-launch:hover { background: #030712; }
+    .quiz-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(17, 24, 39, .58);
+      backdrop-filter: blur(4px);
+    }
+    .quiz-shell {
+      width: min(780px, 100%);
+      max-height: calc(100vh - 36px);
+      overflow: auto;
+      background: #fff;
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 20px;
+      box-shadow: 0 24px 70px rgba(0,0,0,.24);
+    }
+    .quiz-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 15px 18px;
+      background: rgba(255,255,255,.96);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+    .quiz-topbar h2 { margin: 0; font-size: 18px; }
+    .quiz-close {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      font-size: 20px;
+      line-height: 1;
+    }
+    .quiz-view { padding: 24px; }
+    .quiz-setup-copy { margin: 0 0 20px; color: var(--muted); line-height: 1.6; }
+    .quiz-settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .quiz-note {
+      margin: 14px 0 0;
+      padding: 11px 12px;
+      border-radius: 10px;
+      background: #eef4ff;
+      color: #1849a9;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .quiz-note.error { background: #fef3f2; color: #b42318; }
+    .quiz-start-actions, .quiz-result-actions {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .quiz-progress-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .quiz-progress-track {
+      height: 7px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e4e7ec;
+      margin-bottom: 24px;
+    }
+    .quiz-progress-fill {
+      height: 100%;
+      width: 0;
+      border-radius: inherit;
+      background: var(--primary);
+      transition: width .25s ease;
+    }
+    .quiz-direction {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #f2f4f7;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .quiz-prompt {
+      margin: 22px 0 26px;
+      text-align: center;
+      font-size: clamp(30px, 6vw, 50px);
+      font-weight: 750;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .quiz-option {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      border: 1px solid #d0d5dd;
+      border-radius: 13px;
+      background: #fff;
+      padding: 12px 14px;
+      color: var(--text);
+      text-align: left;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+    .quiz-option:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); }
+    .quiz-option-letter {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: #f2f4f7;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .quiz-option.correct { border-color: #86efac; background: #f0fdf4; color: #166534; }
+    .quiz-option.wrong { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+    .quiz-option:disabled { opacity: 1; cursor: default; }
+    .quiz-feedback {
+      margin-top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f9fafb;
+    }
+    .quiz-feedback-title { margin: 0 0 8px; font-size: 18px; }
+    .quiz-feedback-title.correct { color: var(--success); }
+    .quiz-feedback-title.wrong { color: var(--danger); }
+    .quiz-answer { font-size: 23px; font-weight: 850; }
+    .quiz-grammar { margin-top: 8px; color: #475467; font-size: 13px; }
+    .quiz-next-row { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .quiz-result-score { text-align: center; padding: 15px 0 8px; }
+    .quiz-result-score strong { display: block; font-size: clamp(48px, 10vw, 76px); line-height: 1; }
+    .quiz-result-score span { color: var(--muted); }
+    .quiz-result-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 22px; }
+    .quiz-result-card { padding: 14px; border: 1px solid var(--line); border-radius: 12px; text-align: center; }
+    .quiz-result-card strong { display: block; font-size: 22px; }
+    .quiz-result-card span { color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 230px minmax(0, 1fr); }
+      .card-list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+    }
+    @media (max-width: 680px) {
+      .topbar { padding: 0 12px; }
+      .brand small, .pill, .role-pill { display: none; }
+      .app { display: block; height: auto; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+      .list-pane { min-height: calc(100vh - 66px); }
+      .card-list { grid-template-columns: 1fr; }
+      .quiz-overlay { padding: 0; }
+      .quiz-shell { max-height: 100vh; min-height: 100vh; border-radius: 0; }
+      .quiz-view { padding: 18px; }
+      .quiz-settings-grid, .quiz-options { grid-template-columns: 1fr; }
+      .quiz-result-summary { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">한</div>
+      <div>
+        <h1>Mi vocabulario coreano</h1>
+        <small>Coreano · Español</small>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="rolePill" class="role-pill hidden"></span>
+      <span id="connectionPill" class="pill">Inicia sesión</span>
+      <button id="logoutBtn" class="btn small hidden" type="button">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <section id="authView" class="auth-wrap">
+    <div class="auth-card">
+      <h2>Entrar al vocabulario</h2>
+      <p>Tu progreso del cuestionario se guarda por separado en tu cuenta.</p>
+
+      <div class="field">
+        <label for="authIdentity">Usuario o correo electrónico</label>
+        <input id="authIdentity" type="text" autocomplete="username" placeholder="alumno01 o nombre@correo.com">
+      </div>
+      <div class="field">
+        <label for="authPassword">Contraseña</label>
+        <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="auth-buttons">
+        <button id="signInBtn" class="btn primary" type="button">Iniciar sesión</button>
+        <button id="signUpBtn" class="btn" type="button">Crear cuenta</button>
+      </div>
+      <div id="authMessage" class="message">
+        Los estudiantes pueden usar el nombre de usuario asignado por el profesor. Si escribes un correo completo, se usará ese correo.
+      </div>
+      <div class="auth-help">
+        La confirmación por correo debe estar desactivada en Supabase. Las cuentas nuevas reciben automáticamente el rol de estudiante.
+      </div>
+    </div>
+  </section>
+
+  <main id="appView" class="app hidden">
+    <aside class="sidebar">
+      <div class="search">
+        <span>⌕</span>
+        <input id="searchInput" type="search" placeholder="Coreano, significado o etiqueta">
+      </div>
+
+      <button id="newCardBtn" class="btn primary hidden" style="width:100%" type="button">＋ Añadir palabra</button>
+      <div class="sidebar-actions">
+        <button id="quizStartBtn" class="btn quiz-launch" type="button">▶ Empezar cuestionario</button>
+      </div>
+
+      <div class="section-title">Clase de palabra (5언)</div>
+      <div id="wordClassFilters"></div>
+
+      <div class="section-title">Categoría gramatical</div>
+      <div id="posFilters"></div>
+
+      <div class="section-title">Etiquetas</div>
+      <div id="tagFilters"></div>
+
+      <div id="studentNote" class="sidebar-note hidden">
+        Puedes consultar las palabras y practicar. Solo el profesor puede añadir, editar o eliminar vocabulario.
+      </div>
+    </aside>
+
+    <section class="list-pane">
+      <div class="list-header">
+        <div class="list-header-row">
+          <h2 id="listTitle">Todas las palabras</h2>
+          <select id="sortSelect" class="sort-select">
+            <option value="korean-asc">Coreano A–Z</option>
+            <option value="korean-desc">Coreano Z–A</option>
+            <option value="newest">Más recientes</option>
+            <option value="updated">Última modificación</option>
+          </select>
+        </div>
+        <div id="listStatus" class="list-status">Cargando…</div>
+      </div>
+      <div id="cardList" class="card-list"></div>
+    </section>
+  </main>
+
+  <div id="quizOverlay" class="quiz-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="quizDialogTitle">
+    <section class="quiz-shell">
+      <div class="quiz-topbar">
+        <h2 id="quizDialogTitle">Cuestionario de vocabulario</h2>
+        <button id="quizCloseBtn" class="quiz-close" type="button" aria-label="Cerrar cuestionario">×</button>
+      </div>
+
+      <div id="quizSetupView" class="quiz-view">
+        <p class="quiz-setup-copy">
+          Elige la dirección y el número de preguntas. Las respuestas incorrectas volverán a aparecer durante la sesión.
+        </p>
+        <div class="quiz-settings-grid">
+          <div class="field">
+            <label for="quizDirectionSelect">Dirección</label>
+            <select id="quizDirectionSelect">
+              <option value="mixed">Mixto (60 % español → coreano)</option>
+              <option value="es_to_ko">Español → coreano</option>
+              <option value="ko_to_es">Coreano → español</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="quizCountSelect">Preguntas principales</label>
+            <select id="quizCountSelect">
+              <option value="10">10 preguntas</option>
+              <option value="20" selected>20 preguntas</option>
+              <option value="30">30 preguntas</option>
+            </select>
+          </div>
+        </div>
+        <div id="quizSetupMessage" class="quiz-note">Se necesitan al menos cuatro respuestas distintas.</div>
+        <div class="quiz-start-actions">
+          <button id="quizBeginBtn" class="btn primary" type="button">Comenzar</button>
+        </div>
+      </div>
+
+      <div id="quizQuestionView" class="quiz-view hidden">
+        <div class="quiz-progress-row">
+          <span id="quizProgressText">Pregunta 0/20</span>
+          <span id="quizScoreText">0 correctas</span>
+        </div>
+        <div class="quiz-progress-track"><div id="quizProgressFill" class="quiz-progress-fill"></div></div>
+        <span id="quizDirectionLabel" class="quiz-direction">Español → coreano</span>
+        <div id="quizPrompt" class="quiz-prompt"></div>
+        <div id="quizOptions" class="quiz-options"></div>
+
+        <div id="quizFeedback" class="quiz-feedback hidden">
+          <h3 id="quizFeedbackTitle" class="quiz-feedback-title"></h3>
+          <div id="quizCorrectAnswer" class="quiz-answer"></div>
+          <div id="quizGrammar" class="quiz-grammar"></div>
+          <div class="quiz-next-row">
+            <button id="quizNextBtn" class="btn primary" type="button">Continuar</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="quizResultView" class="quiz-view hidden">
+        <div class="quiz-result-score">
+          <strong id="quizResultPercent">0 %</strong>
+          <span>Porcentaje de respuestas correctas</span>
+        </div>
+        <div class="quiz-result-summary">
+          <div class="quiz-result-card"><strong id="quizResultCorrect">0</strong><span>correctas</span></div>
+          <div class="quiz-result-card"><strong id="quizResultWrong">0</strong><span>incorrectas</span></div>
+          <div class="quiz-result-card"><strong id="quizResultRetries">0</strong><span>repeticiones</span></div>
+        </div>
+        <div class="quiz-result-actions">
+          <button id="quizBackToSetupBtn" class="btn" type="button">Nuevo cuestionario</button>
+          <button id="quizFinishBtn" class="btn primary" type="button">Cerrar</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const SUPABASE_URL = "https://ojjbejafhbgdqewukykk.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_r2HlHxFq0CIOadtgJmfqhQ_6nssGrH6";
+
+    const TABLE = "korean_vocab_cards";
+    const PROFILES_TABLE = "profiles";
+    const QUIZ_PROGRESS_TABLE = "korean_vocab_quiz_progress";
+    const QUIZ_ATTEMPTS_TABLE = "korean_vocab_quiz_attempts";
+    const STUDENT_EMAIL_SUFFIX = "@korean-class.example.com";
+    const QUIZ_TARGET = { es_to_ko: 0.85, ko_to_es: 0.80 };
+
+    const WORD_CLASS_ORDER = ["체언", "용언", "수식언", "관계언", "독립언"];
+    const WORD_CLASS_LABELS = {
+      "체언": "체언 · nominales",
+      "용언": "용언 · predicativas",
+      "수식언": "수식언 · modificadoras",
+      "관계언": "관계언 · relacionales",
+      "독립언": "독립언 · independientes"
+    };
+    const WORD_CLASS_CSS = {
+      "체언": "nominal",
+      "용언": "predicate",
+      "수식언": "modifier",
+      "관계언": "relational",
+      "독립언": "independent"
+    };
+
+    const POS_ORDER = ["명사", "대명사", "수사", "동사", "형용사", "관형사", "부사", "조사", "감탄사"];
+    const POS_LABELS = {
+      "명사": "명사 · sustantivo",
+      "대명사": "대명사 · pronombre",
+      "수사": "수사 · numeral",
+      "동사": "동사 · verbo",
+      "형용사": "형용사 · adjetivo",
+      "관형사": "관형사 · determinante",
+      "부사": "부사 · adverbio",
+      "조사": "조사 · partícula",
+      "감탄사": "감탄사 · interjección"
+    };
+    const WORD_CLASS_BY_POS = {
+      "명사": "체언", "대명사": "체언", "수사": "체언",
+      "동사": "용언", "형용사": "용언",
+      "관형사": "수식언", "부사": "수식언",
+      "조사": "관계언", "감탄사": "독립언"
+    };
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    });
+
+    let session = null;
+    let currentProfile = null;
+    let isTeacher = false;
+    let cards = [];
+    let selectedId = null;
+    let selectedWordClass = "all";
+    let selectedPos = "all";
+    let selectedTag = "all";
+    let searchTerm = "";
+    let busy = false;
+    let cardWindow = null;
+
+    let quizProgress = [];
+    let quizProgressByKey = new Map();
+    let quizAvailable = false;
+    let quizSetupError = "";
+    let quizSession = null;
+    let currentQuizQuestion = null;
+    let quizBusy = false;
+
+    const $ = (id) => document.getElementById(id);
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function normalizeText(value) {
+      return String(value || "").trim().toLocaleLowerCase("ko-KR").replace(/\s+/g, " ");
+    }
+
+    function parseTags(value) {
+      return [...new Set(
+        String(value || "")
+          .split(/[,;\n]/)
+          .map(tag => tag.trim())
+          .filter(Boolean)
+      )];
+    }
+
+    function toAuthEmail(identity) {
+      const value = String(identity || "").trim().toLowerCase();
+      if (value.includes("@")) return value;
+      if (!/^[a-z0-9._-]{2,40}$/.test(value)) {
+        throw new Error("El usuario solo puede contener letras, números, punto, guion y guion bajo.");
+      }
+      return value + STUDENT_EMAIL_SUFFIX;
+    }
+
+    function displayIdentity(user) {
+      const email = String(user?.email || "");
+      return email.endsWith(STUDENT_EMAIL_SUFFIX)
+        ? email.slice(0, -STUDENT_EMAIL_SUFFIX.length)
+        : email;
+    }
+
+    function findCard(cardId) {
+      return cards.find(card => String(card.id) === String(cardId)) || null;
+    }
+
+    function showToast(message, isError = false) {
+      const toast = $("toast");
+      toast.textContent = message;
+      toast.className = "toast show" + (isError ? " error" : "");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => { toast.className = "toast"; }, 3600);
+    }
+
+    function setAuthMessage(message, type = "") {
+      const element = $("authMessage");
+      element.textContent = message;
+      element.className = "message" + (type ? " " + type : "");
+    }
+
+    function setBusy(value) {
+      busy = value;
+      document.querySelectorAll("button").forEach(button => {
+        if (!button.dataset.alwaysEnabled) button.disabled = value;
+      });
+    }
+
+    async function signIn() {
+      let email;
+      const identity = $("authIdentity").value.trim();
+      const password = $("authPassword").value;
+      try {
+        email = toAuthEmail(identity);
+      } catch (error) {
+        setAuthMessage(error.message, "error");
+        return;
+      }
+      if (!identity || !password) {
+        setAuthMessage("Escribe tu usuario y contraseña.", "error");
+        return;
+      }
+
+      setBusy(true);
+      setAuthMessage("Iniciando sesión…");
+      const { error } = await db.auth.signInWithPassword({ email, password });
+      setBusy(false);
+      if (error) setAuthMessage("No se pudo iniciar sesión: " + error.message, "error");
+    }
+
+    async function signUp() {
+      const identity = $("authIdentity").value.trim();
+      const password = $("authPassword").value;
+      let email;
+      try {
+        email = toAuthEmail(identity);
+      } catch (error) {
+        setAuthMessage(error.message, "error");
+        return;
+      }
+      if (!identity || password.length < 6) {
+        setAuthMessage("Escribe un usuario válido y una contraseña de al menos 6 caracteres.", "error");
+        return;
+      }
+
+      setBusy(true);
+      setAuthMessage("Creando la cuenta…");
+      const { data, error } = await db.auth.signUp({
+        email,
+        password,
+        options: { data: { display_name: identity.includes("@") ? identity.split("@")[0] : identity } }
+      });
+      setBusy(false);
+
+      if (error) {
+        setAuthMessage("No se pudo crear la cuenta: " + error.message, "error");
+        return;
+      }
+      if (data.session) {
+        setAuthMessage("Cuenta creada. Ya has iniciado sesión.", "success");
+      } else {
+        setAuthMessage("Cuenta creada. Revisa la configuración de confirmación de correo en Supabase.", "success");
+      }
+    }
+
+    async function signOut() {
+      await db.auth.signOut();
+    }
+
+    async function loadCurrentProfile() {
+      if (!session?.user) return null;
+      const { data, error } = await db
+        .from(PROFILES_TABLE)
+        .select("id, display_name, role, class_code")
+        .eq("id", session.user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    }
+
+    function applyRoleUi() {
+      isTeacher = currentProfile?.role === "teacher";
+      $("newCardBtn").classList.toggle("hidden", !isTeacher);
+      $("studentNote").classList.toggle("hidden", isTeacher);
+
+      const rolePill = $("rolePill");
+      rolePill.classList.remove("hidden", "student");
+      rolePill.classList.toggle("student", !isTeacher);
+      rolePill.textContent = isTeacher ? "Profesor" : "Estudiante";
+    }
+
+    async function handleSession(nextSession) {
+      session = nextSession;
+      const loggedIn = Boolean(session?.user);
+      $("authView").classList.toggle("hidden", loggedIn);
+      $("appView").classList.toggle("hidden", !loggedIn);
+      $("logoutBtn").classList.toggle("hidden", !loggedIn);
+      $("rolePill").classList.toggle("hidden", !loggedIn);
+
+      if (loggedIn) {
+        $("connectionPill").textContent = displayIdentity(session.user);
+        try {
+          currentProfile = await loadCurrentProfile();
+          applyRoleUi();
+          await loadCards();
+        } catch (error) {
+          console.error(error);
+          showToast("No se pudo cargar el perfil: " + (error.message || error), true);
+        }
+      } else {
+        currentProfile = null;
+        isTeacher = false;
+        cards = [];
+        selectedId = null;
+        quizProgress = [];
+        quizProgressByKey = new Map();
+        quizAvailable = false;
+        quizSession = null;
+        $("connectionPill").textContent = "Inicia sesión";
+        renderAll();
+      }
+    }
+
+    async function fetchAllCards() {
+      const pageSize = 1000;
+      let from = 0;
+      let result = [];
+      while (true) {
+        const { data, error } = await db.from(TABLE).select("*").range(from, from + pageSize - 1);
+        if (error) throw error;
+        result = result.concat(data || []);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return result;
+    }
+
+    async function loadCards() {
+      if (!session) return;
+      $("listStatus").textContent = "Cargando palabras desde Supabase…";
+      try {
+        cards = await fetchAllCards();
+        if (selectedId && !findCard(selectedId)) selectedId = null;
+        renderAll();
+        const name = currentProfile?.display_name || displayIdentity(session.user);
+        $("connectionPill").textContent = `${name} · ${cards.length} palabras`;
+        await loadQuizProgress({ silent: true });
+      } catch (error) {
+        console.error(error);
+        $("listStatus").textContent = "No se pudieron cargar las palabras";
+        showToast("Error al cargar: " + (error.message || error), true);
+      }
+    }
+
+    function getAllTags() {
+      const counts = new Map();
+      cards.forEach(card => {
+        (card.tags || []).forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1));
+      });
+      return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], "es"));
+    }
+
+    function filteredCards() {
+      let result = cards.filter(card => {
+        if (selectedWordClass !== "all" && card.word_class !== selectedWordClass) return false;
+        if (selectedPos !== "all" && card.part_of_speech !== selectedPos) return false;
+        if (selectedTag !== "all" && !(card.tags || []).includes(selectedTag)) return false;
+        if (searchTerm) {
+          const haystack = [
+            card.korean,
+            card.meaning_es,
+            card.word_class,
+            card.part_of_speech,
+            ...(card.tags || [])
+          ].join(" ").toLocaleLowerCase("es");
+          if (!haystack.includes(searchTerm)) return false;
+        }
+        return true;
+      });
+
+      const sort = $("sortSelect")?.value || "korean-asc";
+      result.sort((a, b) => {
+        if (sort === "korean-desc") return String(b.korean).localeCompare(String(a.korean), "ko");
+        if (sort === "newest") return new Date(b.created_at) - new Date(a.created_at);
+        if (sort === "updated") return new Date(b.updated_at) - new Date(a.updated_at);
+        return String(a.korean).localeCompare(String(b.korean), "ko");
+      });
+      return result;
+    }
+
+    function renderWordClassFilters() {
+      const counts = Object.fromEntries(WORD_CLASS_ORDER.map(value => [value, 0]));
+      cards.forEach(card => { if (counts[card.word_class] !== undefined) counts[card.word_class] += 1; });
+      const html = [
+        `<button class="filter-button ${selectedWordClass === "all" ? "active" : ""}" data-word-class="all">
+          <span class="filter-label">Todas</span><span class="count">${cards.length}</span>
+        </button>`,
+        ...WORD_CLASS_ORDER.map(value => `
+          <button class="filter-button ${selectedWordClass === value ? "active" : ""}" data-word-class="${escapeHtml(value)}">
+            <span class="filter-label">${escapeHtml(WORD_CLASS_LABELS[value])}</span><span class="count">${counts[value]}</span>
+          </button>`)
+      ];
+      $("wordClassFilters").innerHTML = html.join("");
+      $("wordClassFilters").querySelectorAll("[data-word-class]").forEach(button => {
+        button.addEventListener("click", () => {
+          selectedWordClass = button.dataset.wordClass;
+          renderAll();
+        });
+      });
+    }
+
+    function renderPosFilters() {
+      const counts = Object.fromEntries(POS_ORDER.map(value => [value, 0]));
+      cards.forEach(card => { if (counts[card.part_of_speech] !== undefined) counts[card.part_of_speech] += 1; });
+      const html = [
+        `<button class="filter-button ${selectedPos === "all" ? "active" : ""}" data-pos="all">
+          <span class="filter-label">Todas</span><span class="count">${cards.length}</span>
+        </button>`,
+        ...POS_ORDER.map(value => `
+          <button class="filter-button ${selectedPos === value ? "active" : ""}" data-pos="${escapeHtml(value)}">
+            <span class="filter-label">${escapeHtml(POS_LABELS[value])}</span><span class="count">${counts[value]}</span>
+          </button>`)
+      ];
+      $("posFilters").innerHTML = html.join("");
+      $("posFilters").querySelectorAll("[data-pos]").forEach(button => {
+        button.addEventListener("click", () => {
+          selectedPos = button.dataset.pos;
+          renderAll();
+        });
+      });
+    }
+
+    function renderTagFilters() {
+      const tags = getAllTags();
+      const html = [
+        `<button class="filter-button ${selectedTag === "all" ? "active" : ""}" data-tag="all">
+          <span class="filter-label">Todas</span><span class="count">${cards.length}</span>
+        </button>`,
+        ...tags.map(([tag, count]) => `
+          <button class="filter-button ${selectedTag === tag ? "active" : ""}" data-tag="${escapeHtml(tag)}">
+            <span class="filter-label"><span class="tag-dot"></span>${escapeHtml(tag)}</span><span class="count">${count}</span>
+          </button>`)
+      ];
+      $("tagFilters").innerHTML = html.join("");
+      $("tagFilters").querySelectorAll("[data-tag]").forEach(button => {
+        button.addEventListener("click", () => {
+          selectedTag = button.dataset.tag;
+          renderAll();
+        });
+      });
+    }
+
+    function renderList() {
+      const result = filteredCards();
+      const titleParts = [];
+      if (selectedWordClass !== "all") titleParts.push(WORD_CLASS_LABELS[selectedWordClass]);
+      if (selectedPos !== "all") titleParts.push(POS_LABELS[selectedPos]);
+      if (selectedTag !== "all") titleParts.push("#" + selectedTag);
+      $("listTitle").textContent = titleParts.length ? titleParts.join(" · ") : "Todas las palabras";
+      $("listStatus").textContent = `${result.length} mostradas · ${cards.length} en total`;
+
+      if (!result.length) {
+        $("cardList").innerHTML = `<div class="empty-state">No hay palabras que coincidan con estos filtros.</div>`;
+        return;
+      }
+
+      $("cardList").innerHTML = result.map(card => {
+        const wordClass = card.word_class || WORD_CLASS_BY_POS[card.part_of_speech] || "";
+        return `
+          <article class="card-row ${String(selectedId) === String(card.id) ? "active" : ""}" data-id="${escapeHtml(card.id)}">
+            <div class="card-row-title">
+              <span class="korean-word">${escapeHtml(card.korean)}</span>
+              <span class="badge ${WORD_CLASS_CSS[wordClass] || "nominal"}">${escapeHtml(wordClass)}</span>
+            </div>
+            <div class="card-row-meaning">${escapeHtml(card.meaning_es || "Sin significado")}</div>
+            <div class="grammar-row"><span class="pos-badge">${escapeHtml(POS_LABELS[card.part_of_speech] || card.part_of_speech)}</span></div>
+            ${(card.tags || []).length ? `<div class="chips">${
+              card.tags.slice(0, 4).map(tag => `<button class="chip" type="button" data-chip-tag="${escapeHtml(tag)}">#${escapeHtml(tag)}</button>`).join("")
+            }</div>` : ""}
+          </article>`;
+      }).join("");
+
+      $("cardList").querySelectorAll(".card-row").forEach(row => {
+        row.addEventListener("click", event => {
+          const chip = event.target.closest("[data-chip-tag]");
+          if (chip) {
+            event.stopPropagation();
+            selectedTag = chip.dataset.chipTag;
+            renderAll();
+            return;
+          }
+          selectedId = row.dataset.id;
+          renderList();
+          openDetailWindow(selectedId);
+        });
+      });
+    }
+
+    function renderAll() {
+      renderWordClassFilters();
+      renderPosFilters();
+      renderTagFilters();
+      renderList();
+    }
+
+    const POPUP_CSS = `
+      :root{--line:#e4e7ec;--text:#1d2430;--muted:#667085;--primary:#3157d5;--danger:#c93636;
+      --nominal:#2563eb;--predicate:#e65e22;--modifier:#7c3aed;--relational:#0f8a77;--independent:#b7791f}
+      *{box-sizing:border-box}body{margin:0;background:#f5f7fb;color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+      button,input,select{font:inherit}button{cursor:pointer}.wrap{max-width:720px;margin:0 auto;padding:20px}
+      .card,.editor{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 28px rgba(16,24,40,.08);overflow:hidden}
+      .head{padding:30px;border-bottom:1px solid var(--line)}h1{margin:0 0 14px;font-size:clamp(36px,8vw,58px);line-height:1.08}h2{margin:0 0 20px}
+      .body{padding:26px 30px 30px}.meaning{font-size:24px;line-height:1.5}.grammar{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+      .badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;color:#fff}
+      .badge.nominal{background:var(--nominal)}.badge.predicate{background:var(--predicate)}.badge.modifier{background:var(--modifier)}
+      .badge.relational{background:var(--relational)}.badge.independent{background:var(--independent)}
+      .pos{display:inline-flex;border:1px solid #d0d5dd;border-radius:999px;padding:4px 8px;color:#475467;font-size:11px;font-weight:800}
+      .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:18px}.chip{background:#f2f4f7;color:#475467;padding:5px 8px;border-radius:999px;font-size:12px}
+      .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}.btn{border:1px solid var(--line);background:#fff;color:var(--text);padding:9px 13px;border-radius:10px;font-weight:700}
+      .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn.danger{color:var(--danger);border-color:#fecaca}
+      .editor{padding:26px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:14px}.field label{display:block;font-size:13px;font-weight:800;margin-bottom:6px}
+      .field input,.field select{width:100%;border:1px solid #d0d5dd;border-radius:10px;padding:10px 11px;background:#fff;outline:none}
+      .field input:focus,.field select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,87,213,.11)}
+      .hint{color:var(--muted);font-size:12px;margin-top:5px}.class-preview{padding:10px 11px;border-radius:10px;background:#f2f4f7;color:#475467;font-weight:800}
+      .tag-wrap{margin-top:9px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#f9fafb}.tag-title{color:var(--muted);font-size:12px;font-weight:800;margin-bottom:7px}
+      .tag-list{display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow:auto}.tag-button{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:999px;padding:5px 9px;font-size:12px}
+      .tag-button:hover{border-color:var(--primary);background:#eef2ff}.tag-empty{color:var(--muted);font-size:12px}.editor-actions{display:flex;justify-content:flex-end;gap:8px}
+      @media(max-width:560px){.wrap{padding:0}.card,.editor{border-radius:0;border:0;min-height:100vh}.head,.body,.editor{padding-left:20px;padding-right:20px}.grid{grid-template-columns:1fr}}
+    `;
+
+    function ensureCardWindow(title) {
+      if (!cardWindow || cardWindow.closed) {
+        cardWindow = window.open("", "koreanVocabCardWindow", "popup=yes,width=740,height=820,resizable=yes,scrollbars=yes");
+      }
+      if (!cardWindow) {
+        showToast("El navegador bloqueó la ventana. Permite las ventanas emergentes para esta página.", true);
+        return null;
+      }
+      cardWindow.document.open();
+      cardWindow.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>${POPUP_CSS}</style></head><body><main id="popupRoot"></main></body></html>`);
+      cardWindow.document.close();
+      cardWindow.focus();
+      return cardWindow;
+    }
+
+    function openDetailWindow(cardId) {
+      const card = findCard(cardId);
+      if (!card) return;
+      selectedId = String(card.id);
+      const wordClass = card.word_class || WORD_CLASS_BY_POS[card.part_of_speech] || "";
+      const win = ensureCardWindow(card.korean);
+      if (!win) return;
+
+      const tags = (card.tags || []).map(tag => `<span class="chip">#${escapeHtml(tag)}</span>`).join("");
+      const teacherActions = isTeacher
+        ? `<button class="btn primary" type="button" onclick="window.opener.openEditorWindow('${escapeHtml(card.id)}')">Editar</button>
+           <button class="btn danger" type="button" onclick="window.opener.deleteCardFromPopup('${escapeHtml(card.id)}')">Eliminar</button>`
+        : "";
+
+      win.document.getElementById("popupRoot").innerHTML = `
+        <div class="wrap"><article class="card">
+          <div class="head">
+            <h1>${escapeHtml(card.korean)}</h1>
+            <div class="grammar">
+              <span class="badge ${WORD_CLASS_CSS[wordClass] || "nominal"}">${escapeHtml(WORD_CLASS_LABELS[wordClass] || wordClass)}</span>
+              <span class="pos">${escapeHtml(POS_LABELS[card.part_of_speech] || card.part_of_speech)}</span>
+            </div>
+            ${tags ? `<div class="chips">${tags}</div>` : ""}
+          </div>
+          <div class="body">
+            <div class="meaning">${escapeHtml(card.meaning_es || "—")}</div>
+            <div class="actions">${teacherActions}<button class="btn" type="button" onclick="window.close()">Cerrar</button></div>
+          </div>
+        </article></div>`;
+    }
+
+    function openEditorWindow(cardId = null) {
+      if (!isTeacher) {
+        showToast("Solo el profesor puede modificar el vocabulario.", true);
+        return;
+      }
+      const card = cardId ? findCard(cardId) : null;
+      const isNew = !card;
+      const win = ensureCardWindow(isNew ? "Añadir palabra" : card.korean);
+      if (!win) return;
+
+      win.document.getElementById("popupRoot").innerHTML = `
+        <div class="wrap"><form id="popupCardForm" class="editor">
+          <h2>${isNew ? "Añadir palabra" : "Editar palabra"}</h2>
+          <div class="grid">
+            <div class="field">
+              <label for="popupKorean">Palabra coreana *</label>
+              <input id="popupKorean" required value="${escapeHtml(card?.korean || "")}" placeholder="예: 학교">
+            </div>
+            <div class="field">
+              <label for="popupMeaning">Significado en español *</label>
+              <input id="popupMeaning" required value="${escapeHtml(card?.meaning_es || "")}" placeholder="ej.: escuela">
+            </div>
+          </div>
+          <div class="grid">
+            <div class="field">
+              <label for="popupPos">Categoría gramatical *</label>
+              <select id="popupPos" required>${POS_ORDER.map(pos => `<option value="${pos}" ${card?.part_of_speech === pos ? "selected" : ""}>${POS_LABELS[pos]}</option>`).join("")}</select>
+            </div>
+            <div class="field">
+              <label>Clase de palabra (automática)</label>
+              <div id="popupWordClass" class="class-preview"></div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="popupTags">Etiquetas</label>
+            <input id="popupTags" value="${escapeHtml((card?.tags || []).join(", "))}" placeholder="Lección 1, escuela, básico" autocomplete="off">
+            <div class="hint">Separa varias etiquetas con comas.</div>
+            <div class="tag-wrap"><div class="tag-title">Etiquetas existentes</div><div id="popupTagList" class="tag-list"></div></div>
+          </div>
+          <div class="editor-actions">
+            <button id="popupCancelBtn" type="button" class="btn">Cancelar</button>
+            <button type="submit" class="btn primary">${isNew ? "Guardar" : "Guardar cambios"}</button>
+          </div>
+        </form></div>`;
+
+      const doc = win.document;
+      const updateClassPreview = () => {
+        const pos = doc.getElementById("popupPos").value;
+        const wordClass = WORD_CLASS_BY_POS[pos] || "—";
+        doc.getElementById("popupWordClass").textContent = WORD_CLASS_LABELS[wordClass] || wordClass;
+      };
+      doc.getElementById("popupPos").addEventListener("change", updateClassPreview);
+      updateClassPreview();
+      setupPopupTagRecommendations(win);
+
+      doc.getElementById("popupCardForm").addEventListener("submit", event => {
+        event.preventDefault();
+        saveCardFromPopup(card?.id || null);
+      });
+      doc.getElementById("popupCancelBtn").addEventListener("click", () => {
+        if (card?.id) openDetailWindow(card.id); else win.close();
+      });
+      doc.getElementById("popupKorean").focus();
+    }
+
+    function setupPopupTagRecommendations(win) {
+      const doc = win.document;
+      const input = doc.getElementById("popupTags");
+      const container = doc.getElementById("popupTagList");
+      const allTags = getAllTags().map(([tag, count]) => ({ tag, count }));
+
+      function selectedTags() { return parseTags(input.value); }
+      function normalized(value) { return String(value || "").trim().toLocaleLowerCase("es"); }
+      function addTag(tag) {
+        const values = selectedTags();
+        if (!values.some(value => normalized(value) === normalized(tag))) values.push(tag);
+        input.value = values.join(", ");
+        render();
+      }
+      function render() {
+        const selected = new Set(selectedTags().map(normalized));
+        const remaining = allTags.filter(item => !selected.has(normalized(item.tag))).slice(0, 20);
+        container.innerHTML = remaining.length
+          ? remaining.map(item => `<button type="button" class="tag-button" data-tag="${escapeHtml(item.tag)}">${escapeHtml(item.tag)} · ${item.count}</button>`).join("")
+          : `<span class="tag-empty">No hay más etiquetas disponibles.</span>`;
+        container.querySelectorAll("[data-tag]").forEach(button => button.addEventListener("click", () => addTag(button.dataset.tag)));
+      }
+      input.addEventListener("input", render);
+      render();
+    }
+
+    async function saveCardFromPopup(cardId) {
+      if (!isTeacher || !cardWindow || cardWindow.closed || busy) return;
+      const doc = cardWindow.document;
+      const korean = doc.getElementById("popupKorean").value.trim();
+      const meaningEs = doc.getElementById("popupMeaning").value.trim();
+      if (!korean || !meaningEs) {
+        cardWindow.alert("La palabra coreana y el significado en español son obligatorios.");
+        return;
+      }
+
+      const duplicate = cards.find(card => String(card.id) !== String(cardId) && normalizeText(card.korean) === normalizeText(korean));
+      if (duplicate) {
+        cardWindow.alert(`Esta palabra ya existe: ${duplicate.korean}`);
+        return;
+      }
+
+      const payload = {
+        korean,
+        meaning_es: meaningEs,
+        part_of_speech: doc.getElementById("popupPos").value,
+        tags: parseTags(doc.getElementById("popupTags").value)
+      };
+
+      setBusy(true);
+      try {
+        const response = cardId
+          ? await db.from(TABLE).update(payload).eq("id", cardId).select().single()
+          : await db.from(TABLE).insert(payload).select().single();
+        if (response.error) throw response.error;
+        selectedId = String(response.data.id);
+        await loadCards();
+        showToast(cardId ? "La palabra se actualizó." : "La palabra se guardó.");
+        openDetailWindow(response.data.id);
+      } catch (error) {
+        console.error(error);
+        showToast("No se pudo guardar: " + (error.message || error), true);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function deleteCardFromPopup(cardId) {
+      if (!isTeacher) return;
+      const card = findCard(cardId);
+      if (!card) return;
+      const confirmed = cardWindow && !cardWindow.closed
+        ? cardWindow.confirm(`¿Eliminar “${card.korean}”?`)
+        : confirm(`¿Eliminar “${card.korean}”?`);
+      if (!confirmed) return;
+
+      setBusy(true);
+      const { error } = await db.from(TABLE).delete().eq("id", card.id);
+      setBusy(false);
+      if (error) {
+        showToast("No se pudo eliminar: " + error.message, true);
+        return;
+      }
+      selectedId = null;
+      if (cardWindow && !cardWindow.closed) cardWindow.close();
+      await loadCards();
+      showToast("La palabra se eliminó.");
+    }
+
+    // =====================================================
+    // Cuestionario adaptativo de cuatro opciones
+    // =====================================================
+
+    function quizKey(cardId, direction) { return `${cardId}::${direction}`; }
+
+    function normalizeQuizValue(value) {
+      return String(value || "")
+        .trim()
+        .toLocaleLowerCase("es")
+        .replace(/[.!?]+$/g, "")
+        .replace(/\s+/g, " ");
+    }
+
+    function daysBetween(startValue, endValue) {
+      if (!startValue) return 1;
+      const start = new Date(startValue).getTime();
+      const end = new Date(endValue).getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return 1;
+      return Math.max(0, (end - start) / 86400000);
+    }
+
+    function addDaysIso(dateValue, days) {
+      const date = new Date(dateValue);
+      date.setTime(date.getTime() + Math.max(1, days) * 86400000);
+      return date.toISOString();
+    }
+
+    function localDateString(dateValue = new Date()) {
+      const date = new Date(dateValue);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function clamp(value, minimum, maximum) { return Math.max(minimum, Math.min(maximum, value)); }
+    function randomInteger(minimum, maximum) { return Math.floor(Math.random() * (maximum - minimum + 1)) + minimum; }
+
+    function shuffle(values) {
+      const result = [...values];
+      for (let index = result.length - 1; index > 0; index--) {
+        const other = Math.floor(Math.random() * (index + 1));
+        [result[index], result[other]] = [result[other], result[index]];
+      }
+      return result;
+    }
+
+    async function fetchAllQuizProgress() {
+      const pageSize = 1000;
+      let from = 0;
+      let result = [];
+      while (true) {
+        const { data, error } = await db.from(QUIZ_PROGRESS_TABLE).select("*").range(from, from + pageSize - 1);
+        if (error) throw error;
+        result = result.concat(data || []);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return result;
+    }
+
+    async function ensureQuizProgressRows(existingRows) {
+      if (!session?.user) return existingRows;
+      const existingKeys = new Set(existingRows.map(row => quizKey(row.card_id, row.direction)));
+      const missing = [];
+      cards.forEach(card => {
+        ["es_to_ko", "ko_to_es"].forEach(direction => {
+          if (!existingKeys.has(quizKey(card.id, direction))) {
+            missing.push({
+              user_id: session.user.id,
+              card_id: card.id,
+              direction,
+              target_retention: QUIZ_TARGET[direction],
+              interval_days: 1,
+              due_at: new Date().toISOString()
+            });
+          }
+        });
+      });
+      if (!missing.length) return existingRows;
+      for (let index = 0; index < missing.length; index += 200) {
+        const chunk = missing.slice(index, index + 200);
+        const { error } = await db.from(QUIZ_PROGRESS_TABLE).upsert(chunk, {
+          onConflict: "user_id,card_id,direction",
+          ignoreDuplicates: true
+        });
+        if (error) throw error;
+      }
+      return fetchAllQuizProgress();
+    }
+
+    async function loadQuizProgress({ silent = false } = {}) {
+      if (!session?.user) return;
+      try {
+        let rows = await fetchAllQuizProgress();
+        rows = await ensureQuizProgressRows(rows);
+        quizProgress = rows;
+        quizProgressByKey = new Map(rows.map(row => [quizKey(row.card_id, row.direction), row]));
+        quizAvailable = true;
+        quizSetupError = "";
+      } catch (error) {
+        console.error("No se pudo cargar el progreso del cuestionario:", error);
+        quizProgress = [];
+        quizProgressByKey = new Map();
+        quizAvailable = false;
+        quizSetupError = String(error.message || error);
+        if (!silent) showToast("No se pudieron cargar las tablas del cuestionario.", true);
+      }
+      renderQuizSetupState();
+    }
+
+    function validQuizCards() {
+      return cards.filter(card => String(card.korean || "").trim() && String(card.meaning_es || "").trim());
+    }
+
+    function buildMeaningFrequency() {
+      const frequency = new Map();
+      validQuizCards().forEach(card => {
+        const key = normalizeQuizValue(card.meaning_es);
+        frequency.set(key, (frequency.get(key) || 0) + 1);
+      });
+      return frequency;
+    }
+
+    function getQuizItems(mode = "mixed") {
+      const cardsById = new Map(cards.map(card => [String(card.id), card]));
+      const meaningFrequency = buildMeaningFrequency();
+      return quizProgress
+        .map(progress => ({ progress, card: cardsById.get(String(progress.card_id)) }))
+        .filter(item => item.card && item.progress.quiz_enabled)
+        .filter(item => item.card.korean && item.card.meaning_es)
+        .filter(item => mode === "mixed" || item.progress.direction === mode)
+        .filter(item => {
+          if (item.progress.direction !== "es_to_ko") return true;
+          return meaningFrequency.get(normalizeQuizValue(item.card.meaning_es)) === 1;
+        });
+    }
+
+    function renderQuizSetupState() {
+      const message = $("quizSetupMessage");
+      if (!message) return;
+      const mode = $("quizDirectionSelect")?.value || "mixed";
+      const usable = quizAvailable ? getQuizItems(mode).length : 0;
+      if (!quizAvailable) {
+        message.className = "quiz-note error";
+        message.textContent = "No se puede acceder a las tablas del cuestionario. " + quizSetupError;
+        $("quizBeginBtn").disabled = true;
+      } else if (usable < 4) {
+        message.className = "quiz-note error";
+        message.textContent = "Se necesitan al menos cuatro respuestas distintas para esta dirección.";
+        $("quizBeginBtn").disabled = true;
+      } else {
+        message.className = "quiz-note";
+        message.textContent = "Las respuestas incorrectas volverán a aparecer después de varias preguntas.";
+        $("quizBeginBtn").disabled = false;
+      }
+    }
+
+    async function openQuizSetup() {
+      $("quizOverlay").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      showQuizView("setup");
+      if (!quizAvailable) await loadQuizProgress({ silent: true });
+      renderQuizSetupState();
+    }
+
+    function closeQuiz() {
+      if (quizBusy) return;
+      $("quizOverlay").classList.add("hidden");
+      document.body.style.overflow = "";
+      quizSession = null;
+      currentQuizQuestion = null;
+      showQuizView("setup");
+    }
+
+    function showQuizView(view) {
+      $("quizSetupView").classList.toggle("hidden", view !== "setup");
+      $("quizQuestionView").classList.toggle("hidden", view !== "question");
+      $("quizResultView").classList.toggle("hidden", view !== "result");
+    }
+
+    function directionName(direction) {
+      return direction === "es_to_ko" ? "Español → coreano" : "Coreano → español";
+    }
+
+    function directionBalanceBonus(item) {
+      if (!quizSession || quizSession.mode !== "mixed") return 0;
+      const total = Math.max(1, quizSession.directionCounts.es_to_ko + quizSession.directionCounts.ko_to_es);
+      const esRatio = quizSession.directionCounts.es_to_ko / total;
+      if (item.progress.direction === "es_to_ko" && esRatio < 0.60) return 8;
+      if (item.progress.direction === "ko_to_es" && esRatio > 0.60) return 8;
+      return 0;
+    }
+
+    function selectionScore(item, now = new Date()) {
+      const progress = item.progress;
+      if (Number(progress.reviews || 0) === 0) return 30 + directionBalanceBonus(item) + Math.random() * 5;
+      const target = Number(progress.target_retention || QUIZ_TARGET[progress.direction]);
+      const elapsed = daysBetween(progress.last_review_at, now);
+      const interval = Math.max(Number(progress.interval_days || 1), 1);
+      const recallProbability = Math.pow(target, elapsed / interval);
+      const urgency = clamp((target - recallProbability) / target, 0, 1);
+      const overdueRatio = clamp(elapsed / interval - 1, 0, 2);
+      const failRate = (Number(progress.wrong_count || 0) + 1) / (Number(progress.reviews || 0) + 4);
+      return urgency * 100 + overdueRatio * 20 + failRate * 15 + directionBalanceBonus(item) + Math.random() * 5;
+    }
+
+    function weightedPick(ranked) {
+      if (!ranked.length) return null;
+      const minimum = Math.min(...ranked.map(entry => entry.score));
+      const weighted = ranked.map(entry => ({ ...entry, weight: Math.max(1, entry.score - minimum + 1) }));
+      const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+      let cursor = Math.random() * total;
+      for (const entry of weighted) {
+        cursor -= entry.weight;
+        if (cursor <= 0) return entry.item;
+      }
+      return weighted.at(-1).item;
+    }
+
+    function chooseRegularQuizItem() {
+      const now = new Date();
+      let candidates = quizSession.items.filter(item => !quizSession.usedProgressIds.has(item.progress.id));
+      const recentIds = new Set(quizSession.recentCardIds.slice(-5).map(String));
+      const withoutRecent = candidates.filter(item => !recentIds.has(String(item.card.id)));
+      if (withoutRecent.length) candidates = withoutRecent;
+      if (!candidates.length) return null;
+
+      const due = candidates.filter(item => Number(item.progress.reviews || 0) > 0 && new Date(item.progress.due_at).getTime() <= now.getTime());
+      const fresh = candidates.filter(item => Number(item.progress.reviews || 0) === 0);
+      const future = candidates.filter(item => Number(item.progress.reviews || 0) > 0 && new Date(item.progress.due_at).getTime() > now.getTime());
+      let pool;
+      if (due.length) pool = due;
+      else if (fresh.length && quizSession.newUsed < quizSession.newLimit) pool = fresh;
+      else pool = future.length ? future : fresh;
+
+      const ranked = pool.map(item => ({ item, score: selectionScore(item, now) })).sort((a, b) => b.score - a.score).slice(0, 8);
+      return weightedPick(ranked);
+    }
+
+    function answerValue(card, direction) { return direction === "es_to_ko" ? card.korean : card.meaning_es; }
+    function promptValue(card, direction) { return direction === "es_to_ko" ? card.meaning_es : card.korean; }
+
+    function sharedTagCount(firstCard, secondCard) {
+      const firstTags = new Set(firstCard.tags || []);
+      return (secondCard.tags || []).filter(tag => firstTags.has(tag)).length;
+    }
+
+    function buildQuizQuestion(item, isSessionRetry = false) {
+      const direction = item.progress.direction;
+      const correctValue = answerValue(item.card, direction);
+      const usedAnswers = new Set([normalizeQuizValue(correctValue)]);
+      const candidates = validQuizCards()
+        .filter(card => String(card.id) !== String(item.card.id))
+        .map(card => {
+          const value = answerValue(card, direction);
+          const normalized = normalizeQuizValue(value);
+          if (!normalized || usedAnswers.has(normalized)) return null;
+          const samePos = card.part_of_speech === item.card.part_of_speech ? 6 : 0;
+          const sharedTags = sharedTagCount(item.card, card) * 3;
+          const maxLength = Math.max(correctValue.length, value.length, 1);
+          const lengthSimilarity = (1 - Math.abs(correctValue.length - value.length) / maxLength) * 2;
+          const prefixSimilarity = direction === "es_to_ko" && normalizeQuizValue(card.korean).slice(0, 1) === normalizeQuizValue(item.card.korean).slice(0, 1) ? 1.5 : 0;
+          return { card, value, normalized, score: samePos + sharedTags + lengthSimilarity + prefixSimilarity + Math.random() * 2 };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score);
+
+      const distractors = [];
+      for (const candidate of candidates) {
+        if (usedAnswers.has(candidate.normalized)) continue;
+        usedAnswers.add(candidate.normalized);
+        distractors.push(candidate);
+        if (distractors.length === 3) break;
+      }
+      if (distractors.length < 3) return null;
+
+      const options = shuffle([
+        { cardId: item.card.id, value: correctValue, correct: true },
+        ...distractors.map(candidate => ({ cardId: candidate.card.id, value: candidate.value, correct: false }))
+      ]);
+      return {
+        item,
+        direction,
+        prompt: promptValue(item.card, direction),
+        correctValue,
+        options,
+        isSessionRetry,
+        answered: false,
+        startedAt: performance.now()
+      };
+    }
+
+    function chooseNextQuestion() {
+      const nextPosition = quizSession.totalShown + 1;
+      const readyRetryIndex = quizSession.retryQueue.findIndex(entry => entry.showAt <= nextPosition);
+      if (readyRetryIndex >= 0) {
+        const [retry] = quizSession.retryQueue.splice(readyRetryIndex, 1);
+        return buildQuizQuestion(retry.item, true);
+      }
+      if (quizSession.primaryPresented >= quizSession.targetCount) {
+        if (quizSession.retryQueue.length) {
+          quizSession.retryQueue.sort((a, b) => a.showAt - b.showAt);
+          return buildQuizQuestion(quizSession.retryQueue.shift().item, true);
+        }
+        return null;
+      }
+      for (let attempt = 0; attempt < 24; attempt++) {
+        const item = chooseRegularQuizItem();
+        if (!item) return null;
+        quizSession.usedProgressIds.add(item.progress.id);
+        const question = buildQuizQuestion(item, false);
+        if (question) {
+          quizSession.primaryPresented += 1;
+          if (Number(item.progress.reviews || 0) === 0) quizSession.newUsed += 1;
+          quizSession.directionCounts[item.progress.direction] += 1;
+          return question;
+        }
+      }
+      return null;
+    }
+
+    function startQuiz() {
+      if (!quizAvailable) return renderQuizSetupState();
+      const mode = $("quizDirectionSelect").value;
+      const targetCount = Number($("quizCountSelect").value || 20);
+      const items = getQuizItems(mode);
+      if (items.length < 4) {
+        showToast("No hay suficientes respuestas distintas.", true);
+        return;
+      }
+      const dueCount = items.filter(item => Number(item.progress.reviews || 0) > 0 && new Date(item.progress.due_at).getTime() <= Date.now()).length;
+      quizSession = {
+        id: crypto.randomUUID(),
+        mode,
+        targetCount: Math.min(targetCount, items.length),
+        items,
+        primaryPresented: 0,
+        primaryAnswered: 0,
+        totalShown: 0,
+        correctPrimary: 0,
+        wrongPrimary: 0,
+        retryShown: 0,
+        retryCorrect: 0,
+        newUsed: 0,
+        newLimit: dueCount >= targetCount ? 0 : Math.min(4, Math.floor(targetCount * 0.20)),
+        directionCounts: { es_to_ko: 0, ko_to_es: 0 },
+        usedProgressIds: new Set(),
+        recentCardIds: [],
+        retryQueue: []
+      };
+      showQuizView("question");
+      showNextQuizQuestion();
+    }
+
+    function showNextQuizQuestion() {
+      if (!quizSession) return;
+      currentQuizQuestion = chooseNextQuestion();
+      if (!currentQuizQuestion) return finishQuiz();
+      quizSession.totalShown += 1;
+      if (currentQuizQuestion.isSessionRetry) quizSession.retryShown += 1;
+      quizSession.recentCardIds.push(currentQuizQuestion.item.card.id);
+      if (quizSession.recentCardIds.length > 8) quizSession.recentCardIds.shift();
+
+      $("quizDirectionLabel").textContent = currentQuizQuestion.isSessionRetry
+        ? `${directionName(currentQuizQuestion.direction)} · repetición`
+        : directionName(currentQuizQuestion.direction);
+      $("quizPrompt").textContent = currentQuizQuestion.prompt;
+      $("quizFeedback").classList.add("hidden");
+      $("quizNextBtn").disabled = false;
+
+      const letters = ["A", "B", "C", "D"];
+      $("quizOptions").innerHTML = currentQuizQuestion.options.map((option, index) => `
+        <button class="quiz-option" type="button" data-option-index="${index}">
+          <span class="quiz-option-letter">${letters[index]}</span><span>${escapeHtml(option.value)}</span>
+        </button>`).join("");
+      $("quizOptions").querySelectorAll("[data-option-index]").forEach(button => {
+        button.addEventListener("click", () => answerQuizQuestion(Number(button.dataset.optionIndex)));
+      });
+      updateQuizProgressDisplay();
+    }
+
+    function updateQuizProgressDisplay() {
+      if (!quizSession) return;
+      const retryText = quizSession.retryShown ? ` · repeticiones ${quizSession.retryShown}` : "";
+      $("quizProgressText").textContent = `Preguntas ${quizSession.primaryAnswered}/${quizSession.targetCount}${retryText}`;
+      $("quizScoreText").textContent = `${quizSession.correctPrimary} correctas`;
+      const percentage = quizSession.targetCount ? Math.min(100, quizSession.primaryAnswered / quizSession.targetCount * 100) : 0;
+      $("quizProgressFill").style.width = `${percentage}%`;
+    }
+
+    function calculateCorrectProgress(progress, now) {
+      const reviews = Number(progress.reviews || 0) + 1;
+      const correctCount = Number(progress.correct_count || 0) + 1;
+      const wrongCount = Number(progress.wrong_count || 0);
+      const today = localDateString(now);
+      const dayStreak = progress.last_correct_date === today ? Number(progress.day_streak || 0) : Number(progress.day_streak || 0) + 1;
+      const oldInterval = Math.max(Number(progress.interval_days || 1), 1);
+      const elapsed = daysBetween(progress.last_review_at, now);
+      const failRate = (wrongCount + 1) / (reviews + 4);
+      const difficultyFactor = clamp(1.10 - 0.80 * failRate, 0.70, 1.05);
+      const latenessFactor = clamp(elapsed / oldInterval, 0.85, 1.35);
+      const growthFactor = 1.75 + 0.10 * Math.min(dayStreak, 5);
+      const caps = [0, 1, 3, 7, 15, 30, 60, 120, 180];
+      const cap = caps[Math.min(dayStreak, 8)];
+      const intervalDays = Math.max(1, Math.min(Math.round(oldInterval * growthFactor * difficultyFactor * latenessFactor), cap));
+      return {
+        reviews,
+        correct_count: correctCount,
+        day_streak: dayStreak,
+        last_correct_date: today,
+        interval_days: intervalDays,
+        due_at: addDaysIso(now, intervalDays),
+        last_review_at: new Date(now).toISOString(),
+        last_result: "correct"
+      };
+    }
+
+    function calculateWrongProgress(progress, now) {
+      const intervalDays = Math.max(1, Math.round(Number(progress.interval_days || 1) * 0.25));
+      return {
+        reviews: Number(progress.reviews || 0) + 1,
+        wrong_count: Number(progress.wrong_count || 0) + 1,
+        lapse_count: Number(progress.lapse_count || 0) + 1,
+        day_streak: Math.max(0, Number(progress.day_streak || 0) - 2),
+        interval_days: intervalDays,
+        due_at: addDaysIso(now, intervalDays),
+        last_review_at: new Date(now).toISOString(),
+        last_result: "wrong"
+      };
+    }
+
+    function replaceQuizProgress(updatedRow) {
+      const index = quizProgress.findIndex(row => String(row.id) === String(updatedRow.id));
+      if (index >= 0) quizProgress[index] = updatedRow; else quizProgress.push(updatedRow);
+      quizProgressByKey.set(quizKey(updatedRow.card_id, updatedRow.direction), updatedRow);
+      if (quizSession) {
+        const item = quizSession.items.find(candidate => String(candidate.progress.id) === String(updatedRow.id));
+        if (item) item.progress = updatedRow;
+      }
+    }
+
+    async function saveQuizAnswer(question, wasCorrect, responseTimeMs) {
+      const progress = question.item.progress;
+      if (!question.isSessionRetry) {
+        const changes = wasCorrect ? calculateCorrectProgress(progress, new Date()) : calculateWrongProgress(progress, new Date());
+        const { data, error } = await db.from(QUIZ_PROGRESS_TABLE).update(changes).eq("id", progress.id).select().single();
+        if (error) throw error;
+        replaceQuizProgress(data);
+      }
+      const { error: attemptError } = await db.from(QUIZ_ATTEMPTS_TABLE).insert({
+        user_id: session.user.id,
+        progress_id: progress.id,
+        session_id: quizSession.id,
+        question_index: Math.max(0, quizSession.totalShown - 1),
+        was_correct: wasCorrect,
+        is_session_retry: question.isSessionRetry,
+        response_time_ms: Math.max(0, Math.round(responseTimeMs))
+      });
+      if (attemptError) throw attemptError;
+    }
+
+    async function answerQuizQuestion(optionIndex) {
+      if (!currentQuizQuestion || currentQuizQuestion.answered || quizBusy) return;
+      currentQuizQuestion.answered = true;
+      quizBusy = true;
+      const selected = currentQuizQuestion.options[optionIndex];
+      const wasCorrect = Boolean(selected?.correct);
+      const responseTimeMs = performance.now() - currentQuizQuestion.startedAt;
+      const optionButtons = [...$("quizOptions").querySelectorAll(".quiz-option")];
+      optionButtons.forEach((button, index) => {
+        button.disabled = true;
+        const option = currentQuizQuestion.options[index];
+        if (option.correct) button.classList.add("correct");
+        else if (index === optionIndex) button.classList.add("wrong");
+      });
+
+      const feedbackTitle = $("quizFeedbackTitle");
+      feedbackTitle.textContent = wasCorrect ? "Correcto" : "Incorrecto";
+      feedbackTitle.className = "quiz-feedback-title " + (wasCorrect ? "correct" : "wrong");
+      $("quizCorrectAnswer").textContent = currentQuizQuestion.correctValue;
+      const card = currentQuizQuestion.item.card;
+      $("quizGrammar").textContent = `${WORD_CLASS_LABELS[card.word_class] || card.word_class} · ${POS_LABELS[card.part_of_speech] || card.part_of_speech}`;
+      $("quizFeedback").classList.remove("hidden");
+      $("quizNextBtn").disabled = true;
+
+      if (currentQuizQuestion.isSessionRetry) {
+        if (wasCorrect) quizSession.retryCorrect += 1;
+      } else {
+        quizSession.primaryAnswered += 1;
+        if (wasCorrect) quizSession.correctPrimary += 1;
+        else {
+          quizSession.wrongPrimary += 1;
+          if (!quizSession.retryQueue.some(entry => String(entry.item.progress.id) === String(currentQuizQuestion.item.progress.id))) {
+            quizSession.retryQueue.push({ item: currentQuizQuestion.item, showAt: quizSession.totalShown + randomInteger(3, 5) });
+          }
+        }
+      }
+      updateQuizProgressDisplay();
+
+      try {
+        await saveQuizAnswer(currentQuizQuestion, wasCorrect, responseTimeMs);
+      } catch (error) {
+        console.error(error);
+        showToast("No se pudo guardar completamente el resultado: " + (error.message || error), true);
+      } finally {
+        quizBusy = false;
+        $("quizNextBtn").disabled = false;
+      }
+    }
+
+    function finishQuiz() {
+      if (!quizSession) return;
+      showQuizView("result");
+      const answered = quizSession.correctPrimary + quizSession.wrongPrimary;
+      const percentage = answered ? Math.round(quizSession.correctPrimary / answered * 100) : 0;
+      $("quizResultPercent").textContent = `${percentage} %`;
+      $("quizResultCorrect").textContent = quizSession.correctPrimary;
+      $("quizResultWrong").textContent = quizSession.wrongPrimary;
+      $("quizResultRetries").textContent = quizSession.retryShown;
+    }
+
+    $("signInBtn").addEventListener("click", signIn);
+    $("signUpBtn").addEventListener("click", signUp);
+    $("logoutBtn").addEventListener("click", signOut);
+    $("newCardBtn").addEventListener("click", () => openEditorWindow(null));
+    $("quizStartBtn").addEventListener("click", openQuizSetup);
+    $("quizCloseBtn").addEventListener("click", closeQuiz);
+    $("quizFinishBtn").addEventListener("click", closeQuiz);
+    $("quizBeginBtn").addEventListener("click", startQuiz);
+    $("quizNextBtn").addEventListener("click", showNextQuizQuestion);
+    $("quizBackToSetupBtn").addEventListener("click", () => {
+      quizSession = null;
+      currentQuizQuestion = null;
+      showQuizView("setup");
+      renderQuizSetupState();
+    });
+    $("quizDirectionSelect").addEventListener("change", renderQuizSetupState);
+    $("quizOverlay").addEventListener("click", event => { if (event.target === $("quizOverlay")) closeQuiz(); });
+    $("searchInput").addEventListener("input", event => {
+      searchTerm = event.target.value.trim().toLocaleLowerCase("es");
+      renderList();
+    });
+    $("sortSelect").addEventListener("change", renderList);
+
+    document.addEventListener("keydown", event => {
+      if (!$("authView").classList.contains("hidden") && event.key === "Enter") signIn();
+      if ($("quizOverlay").classList.contains("hidden")) return;
+      if (event.key === "Escape") closeQuiz();
+      const questionVisible = !$("quizQuestionView").classList.contains("hidden");
+      if (event.key === "Enter" && questionVisible && !$("quizFeedback").classList.contains("hidden") && !quizBusy) showNextQuizQuestion();
+      const optionIndex = ["1", "2", "3", "4"].indexOf(event.key);
+      if (questionVisible && optionIndex >= 0 && currentQuizQuestion && !currentQuizQuestion.answered) answerQuizQuestion(optionIndex);
+    });
+
+    db.auth.onAuthStateChange((_event, nextSession) => { handleSession(nextSession); });
+
+    (async () => {
+      const { data } = await db.auth.getSession();
+      await handleSession(data.session);
+    })();
+  </script>
+</body>
+</html>
