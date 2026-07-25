@@ -260,6 +260,29 @@
       font-weight: 800;
       letter-spacing: -.015em;
     }
+    .korean-audio-group {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .tts-button {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid #d0d5dd;
+      border-radius: 10px;
+      background: #fff;
+      color: #344054;
+      cursor: pointer;
+      font-size: 17px;
+      line-height: 1;
+    }
+    .tts-button:hover { border-color: var(--primary); background: var(--primary-soft); }
+    .tts-button:active { transform: scale(.96); }
+    .tts-button.small { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; }
     .card-row-meaning {
       color: #344054;
       font-size: 13px;
@@ -446,7 +469,17 @@
       line-height: 1.2;
       overflow-wrap: anywhere;
     }
+    .quiz-prompt-audio {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+    }
+    .quiz-prompt-audio .tts-button { width: 42px; height: 42px; font-size: 20px; }
     .quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .quiz-option-wrap { display: flex; align-items: stretch; gap: 7px; min-width: 0; }
+    .quiz-option-wrap .quiz-option { flex: 1 1 auto; min-width: 0; }
+    .quiz-option-wrap .tts-button { align-self: stretch; height: auto; min-height: 64px; }
     .quiz-option {
       min-height: 64px;
       display: flex;
@@ -566,7 +599,7 @@
         <input id="searchInput" type="search" placeholder="Coreano, significado o etiqueta">
       </div>
 
-      <button id="newCardBtn" class="btn primary hidden" style="width:100%" type="button">＋ Añadir palabra</button>
+      <button id="newCardBtn" class="btn primary hidden" style="width:100%" type="button">＋ Añadir entrada</button>
       <div class="sidebar-actions">
         <button id="quizStartBtn" class="btn quiz-launch" type="button">▶ Empezar cuestionario</button>
       </div>
@@ -588,7 +621,7 @@
     <section class="list-pane">
       <div class="list-header">
         <div class="list-header-row">
-          <h2 id="listTitle">Todas las palabras</h2>
+          <h2 id="listTitle">Todas las entradas</h2>
           <select id="sortSelect" class="sort-select">
             <option value="korean-asc">Coreano A–Z</option>
             <option value="korean-desc">Coreano Z–A</option>
@@ -686,6 +719,7 @@
     const QUIZ_PROGRESS_TABLE = "korean_vocab_quiz_progress";
     const QUIZ_ATTEMPTS_TABLE = "korean_vocab_quiz_attempts";
     const SHARED_TAGS_TABLE = "korean_vocab_shared_tags";
+    const AUDIO_BUCKET = "korean-audio";
     const STUDENT_EMAIL_SUFFIX = "@korean-class.example.com";
     const QUIZ_TARGET = { es_to_ko: 0.85, ko_to_es: 0.80 };
 
@@ -723,6 +757,33 @@
       "관형사": "수식언", "부사": "수식언",
       "조사": "관계언", "감탄사": "독립언"
     };
+    const ENTRY_TYPE_LABELS = {
+      word: "단어 · palabra",
+      expression: "유용한 표현 · expresión útil"
+    };
+    const EXPRESSION_FILTER_VALUE = "__expression__";
+
+    function isExpression(card) {
+      return card?.entry_type === "expression";
+    }
+
+    function grammarDisplay(card) {
+      if (isExpression(card)) {
+        return {
+          wordClass: "표현",
+          classLabel: "유용한 표현 · expresión útil",
+          cssClass: "independent",
+          posLabel: "품사 없음 · sin categoría gramatical"
+        };
+      }
+      const wordClass = card?.word_class || WORD_CLASS_BY_POS[card?.part_of_speech] || "";
+      return {
+        wordClass,
+        classLabel: WORD_CLASS_LABELS[wordClass] || wordClass || "—",
+        cssClass: WORD_CLASS_CSS[wordClass] || "nominal",
+        posLabel: POS_LABELS[card?.part_of_speech] || card?.part_of_speech || "—"
+      };
+    }
 
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
@@ -763,6 +824,57 @@
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
     }
+
+    let activeAudio = null;
+
+    function stopActiveAudio() {
+      if (!activeAudio) return;
+      activeAudio.pause();
+      activeAudio.currentTime = 0;
+      activeAudio = null;
+    }
+
+    function getCardAudioUrl(card) {
+      if (!card?.audio_path) return "";
+      const { data } = db.storage.from(AUDIO_BUCKET).getPublicUrl(card.audio_path);
+      return data?.publicUrl || "";
+    }
+
+    async function playCardAudio(cardId) {
+      const card = findCard(cardId);
+      if (!card?.audio_path) {
+        showToast("Esta entrada todavía no tiene audio MP3.", true);
+        return;
+      }
+
+      const url = getCardAudioUrl(card);
+      if (!url) {
+        showToast("No se pudo encontrar el archivo de audio.", true);
+        return;
+      }
+
+      stopActiveAudio();
+      const audio = new Audio(url);
+      activeAudio = audio;
+      audio.preload = "auto";
+      audio.addEventListener("ended", () => {
+        if (activeAudio === audio) activeAudio = null;
+      });
+      audio.addEventListener("error", () => {
+        if (activeAudio === audio) activeAudio = null;
+        showToast("No se pudo reproducir el audio.", true);
+      });
+
+      try {
+        await audio.play();
+      } catch (error) {
+        console.error(error);
+        if (activeAudio === audio) activeAudio = null;
+        showToast("El navegador no pudo iniciar el audio.", true);
+      }
+    }
+
+    window.playCardAudio = playCardAudio;
 
     function normalizeText(value) {
       return String(value || "").trim().toLocaleLowerCase("ko-KR").replace(/\s+/g, " ");
@@ -1017,7 +1129,7 @@
 
     async function loadCards() {
       if (!session) return;
-      $("listStatus").textContent = "Cargando palabras desde Supabase…";
+      $("listStatus").textContent = "Cargando entradas desde Supabase…";
       try {
         const [baseCards, tagRows] = await Promise.all([
           fetchAllCards(),
@@ -1028,11 +1140,11 @@
         if (selectedId && !findCard(selectedId)) selectedId = null;
         renderAll();
         const name = currentProfile?.display_name || displayIdentity(session.user);
-        $("connectionPill").textContent = `${name} · ${cards.length} palabras`;
+        $("connectionPill").textContent = `${name} · ${cards.length} entradas`;
         await loadQuizProgress({ silent: true });
       } catch (error) {
         console.error(error);
-        $("listStatus").textContent = "No se pudieron cargar las palabras";
+        $("listStatus").textContent = "No se pudieron cargar las entradas";
         showToast("Error al cargar: " + (error.message || error), true);
       }
     }
@@ -1047,8 +1159,14 @@
 
     function filteredCards() {
       let result = cards.filter(card => {
-        if (selectedWordClass !== "all" && card.word_class !== selectedWordClass) return false;
-        if (selectedPos !== "all" && card.part_of_speech !== selectedPos) return false;
+        if (selectedWordClass !== "all" && (isExpression(card) || card.word_class !== selectedWordClass)) return false;
+        if (selectedPos !== "all") {
+          if (selectedPos === EXPRESSION_FILTER_VALUE) {
+            if (!isExpression(card)) return false;
+          } else if (isExpression(card) || card.part_of_speech !== selectedPos) {
+            return false;
+          }
+        }
         if (selectedTag !== "all" && !(card.tags || []).includes(selectedTag)) return false;
         if (searchTerm) {
           const haystack = [
@@ -1056,6 +1174,7 @@
             card.meaning_es,
             card.word_class,
             card.part_of_speech,
+            ENTRY_TYPE_LABELS[card.entry_type || "word"],
             ...(card.tags || [])
           ].join(" ").toLocaleLowerCase("es");
           if (!haystack.includes(searchTerm)) return false;
@@ -1096,10 +1215,17 @@
 
     function renderPosFilters() {
       const counts = Object.fromEntries(POS_ORDER.map(value => [value, 0]));
-      cards.forEach(card => { if (counts[card.part_of_speech] !== undefined) counts[card.part_of_speech] += 1; });
+      let expressionCount = 0;
+      cards.forEach(card => {
+        if (isExpression(card)) expressionCount += 1;
+        else if (counts[card.part_of_speech] !== undefined) counts[card.part_of_speech] += 1;
+      });
       const html = [
         `<button class="filter-button ${selectedPos === "all" ? "active" : ""}" data-pos="all">
           <span class="filter-label">Todas</span><span class="count">${cards.length}</span>
+        </button>`,
+        `<button class="filter-button ${selectedPos === EXPRESSION_FILTER_VALUE ? "active" : ""}" data-pos="${EXPRESSION_FILTER_VALUE}">
+          <span class="filter-label">${ENTRY_TYPE_LABELS.expression}</span><span class="count">${expressionCount}</span>
         </button>`,
         ...POS_ORDER.map(value => `
           <button class="filter-button ${selectedPos === value ? "active" : ""}" data-pos="${escapeHtml(value)}">
@@ -1139,26 +1265,29 @@
       const result = filteredCards();
       const titleParts = [];
       if (selectedWordClass !== "all") titleParts.push(WORD_CLASS_LABELS[selectedWordClass]);
-      if (selectedPos !== "all") titleParts.push(POS_LABELS[selectedPos]);
+      if (selectedPos !== "all") titleParts.push(selectedPos === EXPRESSION_FILTER_VALUE ? ENTRY_TYPE_LABELS.expression : POS_LABELS[selectedPos]);
       if (selectedTag !== "all") titleParts.push("#" + selectedTag);
-      $("listTitle").textContent = titleParts.length ? titleParts.join(" · ") : "Todas las palabras";
+      $("listTitle").textContent = titleParts.length ? titleParts.join(" · ") : "Todas las entradas";
       $("listStatus").textContent = `${result.length} mostradas · ${cards.length} en total`;
 
       if (!result.length) {
-        $("cardList").innerHTML = `<div class="empty-state">No hay palabras que coincidan con estos filtros.</div>`;
+        $("cardList").innerHTML = `<div class="empty-state">No hay entradas que coincidan con estos filtros.</div>`;
         return;
       }
 
       $("cardList").innerHTML = result.map(card => {
-        const wordClass = card.word_class || WORD_CLASS_BY_POS[card.part_of_speech] || "";
+        const grammar = grammarDisplay(card);
         return `
           <article class="card-row ${String(selectedId) === String(card.id) ? "active" : ""}" data-id="${escapeHtml(card.id)}">
             <div class="card-row-title">
-              <span class="korean-word">${escapeHtml(card.korean)}</span>
-              <span class="badge ${WORD_CLASS_CSS[wordClass] || "nominal"}">${escapeHtml(wordClass)}</span>
+              <span class="korean-audio-group">
+                <span class="korean-word">${escapeHtml(card.korean)}</span>
+                <button class="tts-button small" type="button" data-audio-card-id="${escapeHtml(card.id)}" aria-label="Escuchar ${escapeHtml(card.korean)}" title="${card.audio_path ? "Escuchar audio" : "Audio pendiente"}" ${card.audio_path ? "" : "disabled"}>${card.audio_path ? "🔊" : "🔇"}</button>
+              </span>
+              <span class="badge ${grammar.cssClass}">${escapeHtml(grammar.wordClass)}</span>
             </div>
             <div class="card-row-meaning">${escapeHtml(card.meaning_es || "Sin significado")}</div>
-            <div class="grammar-row"><span class="pos-badge">${escapeHtml(POS_LABELS[card.part_of_speech] || card.part_of_speech)}</span></div>
+            <div class="grammar-row"><span class="pos-badge">${escapeHtml(grammar.posLabel)}</span></div>
             ${(card.tags || []).length ? `<div class="chips">${
               card.tags.slice(0, 4).map(tag => `<button class="chip" type="button" data-chip-tag="${escapeHtml(tag)}">#${escapeHtml(tag)}</button>`).join("")
             }</div>` : ""}
@@ -1167,6 +1296,12 @@
 
       $("cardList").querySelectorAll(".card-row").forEach(row => {
         row.addEventListener("click", event => {
+          const audioButton = event.target.closest("[data-audio-card-id]");
+          if (audioButton) {
+            event.stopPropagation();
+            playCardAudio(audioButton.dataset.audioCardId);
+            return;
+          }
           const chip = event.target.closest("[data-chip-tag]");
           if (chip) {
             event.stopPropagation();
@@ -1206,6 +1341,9 @@
       .editor{padding:26px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:14px}.field label{display:block;font-size:13px;font-weight:800;margin-bottom:6px}
       .field input,.field select{width:100%;border:1px solid #d0d5dd;border-radius:10px;padding:10px 11px;background:#fff;outline:none}
       .field input:focus,.field select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,87,213,.11)}
+      .check-row{display:flex!important;align-items:flex-start;gap:9px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#f9fafb;line-height:1.45;cursor:pointer}
+      .check-row input{width:auto!important;margin:3px 0 0;padding:0;flex:0 0 auto}.audio-box{padding:12px;border:1px solid var(--line);border-radius:12px;background:#f9fafb}
+      .audio-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
       .hint{color:var(--muted);font-size:12px;margin-top:5px}.share-note{padding:12px 14px;margin-bottom:18px;border-radius:12px;background:#eef2ff;color:#344054;line-height:1.5;font-size:13px}.class-preview{padding:10px 11px;border-radius:10px;background:#f2f4f7;color:#475467;font-weight:800}
       .tag-wrap{margin-top:9px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#f9fafb}.tag-title{color:var(--muted);font-size:12px;font-weight:800;margin-bottom:7px}
       .tag-list{display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow:auto}.tag-button{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:999px;padding:5px 9px;font-size:12px}
@@ -1232,13 +1370,13 @@
       const card = findCard(cardId);
       if (!card) return;
       selectedId = String(card.id);
-      const wordClass = card.word_class || WORD_CLASS_BY_POS[card.part_of_speech] || "";
+      const grammar = grammarDisplay(card);
       const win = ensureCardWindow(card.korean);
       if (!win) return;
 
       const tags = (card.tags || []).map(tag => `<span class="chip">#${escapeHtml(tag)}</span>`).join("");
       const teacherActions = isTeacher
-        ? `<button class="btn primary" type="button" onclick="window.opener.openEditorWindow('${escapeHtml(card.id)}')">Editar palabra</button>
+        ? `<button class="btn primary" type="button" onclick="window.opener.openEditorWindow('${escapeHtml(card.id)}')">Editar entrada</button>
            <button class="btn danger" type="button" onclick="window.opener.deleteCardFromPopup('${escapeHtml(card.id)}')">Eliminar</button>`
         : "";
       const sharedTagAction = `<button class="btn" type="button" onclick="window.opener.openSharedTagEditor('${escapeHtml(card.id)}')">Añadir etiquetas</button>`;
@@ -1248,14 +1386,14 @@
           <div class="head">
             <h1>${escapeHtml(card.korean)}</h1>
             <div class="grammar">
-              <span class="badge ${WORD_CLASS_CSS[wordClass] || "nominal"}">${escapeHtml(WORD_CLASS_LABELS[wordClass] || wordClass)}</span>
-              <span class="pos">${escapeHtml(POS_LABELS[card.part_of_speech] || card.part_of_speech)}</span>
+              <span class="badge ${grammar.cssClass}">${escapeHtml(grammar.classLabel)}</span>
+              <span class="pos">${escapeHtml(grammar.posLabel)}</span>
             </div>
             ${tags ? `<div class="chips">${tags}</div>` : ""}
           </div>
           <div class="body">
             <div class="meaning">${escapeHtml(card.meaning_es || "—")}</div>
-            <div class="actions">${sharedTagAction}${teacherActions}<button class="btn" type="button" onclick="window.close()">Cerrar</button></div>
+            <div class="actions"><button class="btn primary" type="button" onclick="window.opener.playCardAudio('${escapeHtml(card.id)}')" ${card.audio_path ? "" : "disabled"}>${card.audio_path ? "🔊 Escuchar" : "🔇 Audio pendiente"}</button>${sharedTagAction}${teacherActions}<button class="btn" type="button" onclick="window.close()">Cerrar</button></div>
           </div>
         </article></div>`;
     }
@@ -1278,7 +1416,7 @@
           </div>
           ${visibleTags ? `<div class="field"><label>Etiquetas visibles para la clase</label><div class="chips">${visibleTags}</div></div>` : ""}
           <div class="field">
-            <label for="popupTags">Mis etiquetas para esta palabra</label>
+            <label for="popupTags">Mis etiquetas para esta entrada</label>
             <input id="popupTags" value="${escapeHtml(ownTags.join(", "))}" placeholder="Lección 1, difícil, examen" autocomplete="off">
             <div class="hint">Separa varias etiquetas con comas. Máximo 25 etiquetas y 40 caracteres por etiqueta.</div>
             <div class="tag-wrap"><div class="tag-title">Etiquetas usadas en la clase</div><div id="popupTagList" class="tag-list"></div></div>
@@ -1342,15 +1480,18 @@
       }
       const card = cardId ? findCard(cardId) : null;
       const isNew = !card;
-      const win = ensureCardWindow(isNew ? "Añadir palabra" : card.korean);
+      const win = ensureCardWindow(isNew ? "Añadir entrada" : card.korean);
       if (!win) return;
+
+      const teacherEditableTags = parseTags(card?.base_tags || card?.tags || []);
+      const entryType = card?.entry_type === "expression" ? "expression" : "word";
 
       win.document.getElementById("popupRoot").innerHTML = `
         <div class="wrap"><form id="popupCardForm" class="editor">
-          <h2>${isNew ? "Añadir palabra" : "Editar palabra"}</h2>
+          <h2>${isNew ? "Añadir entrada" : "Editar entrada"}</h2>
           <div class="grid">
             <div class="field">
-              <label for="popupKorean">Palabra coreana *</label>
+              <label for="popupKorean">Entrada coreana *</label>
               <input id="popupKorean" required value="${escapeHtml(card?.korean || "")}" placeholder="예: 학교">
             </div>
             <div class="field">
@@ -1360,19 +1501,37 @@
           </div>
           <div class="grid">
             <div class="field">
-              <label for="popupPos">Categoría gramatical *</label>
-              <select id="popupPos" required>${POS_ORDER.map(pos => `<option value="${pos}" ${card?.part_of_speech === pos ? "selected" : ""}>${POS_LABELS[pos]}</option>`).join("")}</select>
+              <label for="popupEntryType">Tipo de entrada *</label>
+              <select id="popupEntryType" required>
+                <option value="word" ${entryType === "word" ? "selected" : ""}>${ENTRY_TYPE_LABELS.word}</option>
+                <option value="expression" ${entryType === "expression" ? "selected" : ""}>${ENTRY_TYPE_LABELS.expression}</option>
+              </select>
+              <div class="hint">Una expresión completa, como 안녕하세요 o 감사합니다, no recibe una sola categoría gramatical.</div>
             </div>
             <div class="field">
-              <label>Clase de palabra (automática)</label>
-              <div id="popupWordClass" class="class-preview"></div>
+              <label for="popupPos">Categoría gramatical</label>
+              <select id="popupPos">
+                <option value="">No corresponde</option>
+                ${POS_ORDER.map(pos => `<option value="${pos}" ${card?.part_of_speech === pos ? "selected" : ""}>${POS_LABELS[pos]}</option>`).join("")}
+              </select>
             </div>
           </div>
           <div class="field">
+            <label>Clase de palabra</label>
+            <div id="popupWordClass" class="class-preview"></div>
+          </div>
+          <div class="field">
             <label for="popupTags">Etiquetas</label>
-            <input id="popupTags" value="${escapeHtml((card?.base_tags || card?.tags || []).join(", "))}" placeholder="Lección 1, escuela, básico" autocomplete="off">
+            <input id="popupTags" value="${escapeHtml(teacherEditableTags.join(", "))}" placeholder="Lección 1, escuela, básico" autocomplete="off">
             <div class="hint">Separa varias etiquetas con comas.</div>
             <div class="tag-wrap"><div class="tag-title">Etiquetas existentes</div><div id="popupTagList" class="tag-list"></div></div>
+          </div>
+          <div class="field audio-box">
+            <label for="popupAudioFile">Audio de TTSMaker (MP3)</label>
+            <input id="popupAudioFile" type="file" accept=".mp3,audio/mpeg,audio/mp3">
+            <div class="hint">El nombre original del archivo no importa. La aplicación lo guardará y lo enlazará automáticamente con esta entrada.</div>
+            ${card?.audio_path ? `<div class="audio-status"><span>Audio actual disponible</span><button class="btn" type="button" onclick="window.opener.playCardAudio('${escapeHtml(card.id)}')">🔊 Probar</button></div>
+            <label class="check-row" style="margin-top:10px"><input id="popupRemoveAudio" type="checkbox"><span>Eliminar el audio actual al guardar</span></label>` : `<div class="audio-status"><span>Todavía no hay audio para esta entrada.</span></div>`}
           </div>
           <div class="editor-actions">
             <button id="popupCancelBtn" type="button" class="btn">Cancelar</button>
@@ -1381,13 +1540,24 @@
         </form></div>`;
 
       const doc = win.document;
-      const updateClassPreview = () => {
-        const pos = doc.getElementById("popupPos").value;
-        const wordClass = WORD_CLASS_BY_POS[pos] || "—";
+      const updateGrammarControls = () => {
+        const type = doc.getElementById("popupEntryType").value;
+        const posSelect = doc.getElementById("popupPos");
+        const expression = type === "expression";
+        posSelect.disabled = expression;
+        posSelect.required = !expression;
+        if (expression) {
+          posSelect.value = "";
+          doc.getElementById("popupWordClass").textContent = "No corresponde a una expresión completa.";
+          return;
+        }
+        if (!posSelect.value) posSelect.value = POS_ORDER[0];
+        const wordClass = WORD_CLASS_BY_POS[posSelect.value] || "—";
         doc.getElementById("popupWordClass").textContent = WORD_CLASS_LABELS[wordClass] || wordClass;
       };
-      doc.getElementById("popupPos").addEventListener("change", updateClassPreview);
-      updateClassPreview();
+      doc.getElementById("popupEntryType").addEventListener("change", updateGrammarControls);
+      doc.getElementById("popupPos").addEventListener("change", updateGrammarControls);
+      updateGrammarControls();
       setupPopupTagRecommendations(win);
 
       doc.getElementById("popupCardForm").addEventListener("submit", event => {
@@ -1426,28 +1596,78 @@
       render();
     }
 
+    async function uploadCardAudio(cardId, file, previousPath = null) {
+      const path = `cards/${cardId}/${Date.now()}.mp3`;
+      const { error: uploadError } = await db.storage.from(AUDIO_BUCKET).upload(path, file, {
+        upsert: false,
+        contentType: "audio/mpeg",
+        cacheControl: "31536000"
+      });
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await db.from(TABLE).update({ audio_path: path }).eq("id", cardId);
+      if (updateError) {
+        await db.storage.from(AUDIO_BUCKET).remove([path]);
+        throw updateError;
+      }
+
+      if (previousPath && previousPath !== path) {
+        const { error: removeError } = await db.storage.from(AUDIO_BUCKET).remove([previousPath]);
+        if (removeError) console.warn("No se pudo borrar el audio anterior:", removeError);
+      }
+      return path;
+    }
+
+    async function removeCardAudio(cardId, path) {
+      const { error: updateError } = await db.from(TABLE).update({ audio_path: null }).eq("id", cardId);
+      if (updateError) throw updateError;
+      if (path) {
+        const { error: removeError } = await db.storage.from(AUDIO_BUCKET).remove([path]);
+        if (removeError) console.warn("No se pudo borrar el archivo de audio:", removeError);
+      }
+    }
+
     async function saveCardFromPopup(cardId) {
       if (!isTeacher || !cardWindow || cardWindow.closed || busy) return;
       const doc = cardWindow.document;
       const korean = doc.getElementById("popupKorean").value.trim();
       const meaningEs = doc.getElementById("popupMeaning").value.trim();
       if (!korean || !meaningEs) {
-        cardWindow.alert("La palabra coreana y el significado en español son obligatorios.");
+        cardWindow.alert("El texto coreano y el significado en español son obligatorios.");
         return;
       }
 
       const duplicate = cards.find(card => String(card.id) !== String(cardId) && normalizeText(card.korean) === normalizeText(korean));
       if (duplicate) {
-        cardWindow.alert(`Esta palabra ya existe: ${duplicate.korean}`);
+        cardWindow.alert(`Esta entrada ya existe: ${duplicate.korean}`);
         return;
       }
 
+      const teacherTags = parseTags(doc.getElementById("popupTags").value);
+
+      const audioFile = doc.getElementById("popupAudioFile")?.files?.[0] || null;
+      const removeAudio = Boolean(doc.getElementById("popupRemoveAudio")?.checked);
+      if (audioFile) {
+        const isMp3 = audioFile.type === "audio/mpeg" || audioFile.type === "audio/mp3" || /\.mp3$/i.test(audioFile.name);
+        if (!isMp3) {
+          cardWindow.alert("Selecciona un archivo MP3.");
+          return;
+        }
+        if (audioFile.size > 10 * 1024 * 1024) {
+          cardWindow.alert("El archivo MP3 debe pesar menos de 10 MB.");
+          return;
+        }
+      }
+
+      const entryType = doc.getElementById("popupEntryType").value;
       const payload = {
         korean,
         meaning_es: meaningEs,
-        part_of_speech: doc.getElementById("popupPos").value,
-        tags: parseTags(doc.getElementById("popupTags").value)
+        entry_type: entryType,
+        part_of_speech: entryType === "expression" ? null : doc.getElementById("popupPos").value,
+        tags: teacherTags
       };
+      const previousCard = cardId ? findCard(cardId) : null;
 
       setBusy(true);
       try {
@@ -1455,10 +1675,18 @@
           ? await db.from(TABLE).update(payload).eq("id", cardId).select().single()
           : await db.from(TABLE).insert(payload).select().single();
         if (response.error) throw response.error;
-        selectedId = String(response.data.id);
+
+        const savedId = response.data.id;
+        if (audioFile) {
+          await uploadCardAudio(savedId, audioFile, previousCard?.audio_path || null);
+        } else if (removeAudio && previousCard?.audio_path) {
+          await removeCardAudio(savedId, previousCard.audio_path);
+        }
+
+        selectedId = String(savedId);
         await loadCards();
-        showToast(cardId ? "La palabra se actualizó." : "La palabra se guardó.");
-        openDetailWindow(response.data.id);
+        showToast(cardId ? "La entrada se actualizó." : "La entrada se guardó.");
+        openDetailWindow(savedId);
       } catch (error) {
         console.error(error);
         showToast("No se pudo guardar: " + (error.message || error), true);
@@ -1477,6 +1705,10 @@
       if (!confirmed) return;
 
       setBusy(true);
+      if (card.audio_path) {
+        const { error: audioError } = await db.storage.from(AUDIO_BUCKET).remove([card.audio_path]);
+        if (audioError) console.warn("No se pudo borrar el audio de la entrada:", audioError);
+      }
       const { error } = await db.from(TABLE).delete().eq("id", card.id);
       setBusy(false);
       if (error) {
@@ -1748,12 +1980,13 @@
           const value = answerValue(card, direction);
           const normalized = normalizeQuizValue(value);
           if (!normalized || usedAnswers.has(normalized)) return null;
-          const samePos = card.part_of_speech === item.card.part_of_speech ? 6 : 0;
+          const sameType = (card.entry_type || "word") === (item.card.entry_type || "word") ? 3 : 0;
+          const samePos = !isExpression(card) && !isExpression(item.card) && card.part_of_speech === item.card.part_of_speech ? 6 : 0;
           const sharedTags = sharedTagCount(item.card, card) * 3;
           const maxLength = Math.max(correctValue.length, value.length, 1);
           const lengthSimilarity = (1 - Math.abs(correctValue.length - value.length) / maxLength) * 2;
           const prefixSimilarity = direction === "es_to_ko" && normalizeQuizValue(card.korean).slice(0, 1) === normalizeQuizValue(item.card.korean).slice(0, 1) ? 1.5 : 0;
-          return { card, value, normalized, score: samePos + sharedTags + lengthSimilarity + prefixSimilarity + Math.random() * 2 };
+          return { card, value, normalized, score: sameType + samePos + sharedTags + lengthSimilarity + prefixSimilarity + Math.random() * 2 };
         })
         .filter(Boolean)
         .sort((a, b) => b.score - a.score);
@@ -1857,17 +2090,32 @@
       $("quizDirectionLabel").textContent = currentQuizQuestion.isSessionRetry
         ? `${directionName(currentQuizQuestion.direction)} · repetición`
         : directionName(currentQuizQuestion.direction);
-      $("quizPrompt").textContent = currentQuizQuestion.prompt;
+      if (currentQuizQuestion.direction === "ko_to_es") {
+        const promptCard = currentQuizQuestion.item.card;
+        $("quizPrompt").innerHTML = `<span class="quiz-prompt-audio"><span>${escapeHtml(currentQuizQuestion.prompt)}</span><button class="tts-button" type="button" data-audio-card-id="${escapeHtml(promptCard.id)}" aria-label="Escuchar pronunciación" title="${promptCard.audio_path ? "Escuchar audio" : "Audio pendiente"}" ${promptCard.audio_path ? "" : "disabled"}>${promptCard.audio_path ? "🔊" : "🔇"}</button></span>`;
+        $("quizPrompt").querySelector("[data-audio-card-id]")?.addEventListener("click", event => {
+          playCardAudio(event.currentTarget.dataset.audioCardId);
+        });
+      } else {
+        $("quizPrompt").textContent = currentQuizQuestion.prompt;
+      }
       $("quizFeedback").classList.add("hidden");
       $("quizNextBtn").disabled = false;
 
       const letters = ["A", "B", "C", "D"];
+      const koreanOptions = currentQuizQuestion.direction === "es_to_ko";
       $("quizOptions").innerHTML = currentQuizQuestion.options.map((option, index) => `
-        <button class="quiz-option" type="button" data-option-index="${index}">
-          <span class="quiz-option-letter">${letters[index]}</span><span>${escapeHtml(option.value)}</span>
-        </button>`).join("");
+        <div class="quiz-option-wrap">
+          <button class="quiz-option" type="button" data-option-index="${index}">
+            <span class="quiz-option-letter">${letters[index]}</span><span>${escapeHtml(option.value)}</span>
+          </button>
+          ${koreanOptions ? `<button class="tts-button" type="button" data-audio-card-id="${escapeHtml(option.cardId)}" aria-label="Escuchar ${escapeHtml(option.value)}" title="${findCard(option.cardId)?.audio_path ? "Escuchar audio" : "Audio pendiente"}" ${findCard(option.cardId)?.audio_path ? "" : "disabled"}>${findCard(option.cardId)?.audio_path ? "🔊" : "🔇"}</button>` : ""}
+        </div>`).join("");
       $("quizOptions").querySelectorAll("[data-option-index]").forEach(button => {
         button.addEventListener("click", () => answerQuizQuestion(Number(button.dataset.optionIndex)));
+      });
+      $("quizOptions").querySelectorAll("[data-audio-card-id]").forEach(button => {
+        button.addEventListener("click", event => playCardAudio(event.currentTarget.dataset.audioCardId));
       });
       updateQuizProgressDisplay();
     }
@@ -1972,7 +2220,8 @@
       feedbackTitle.className = "quiz-feedback-title " + (wasCorrect ? "correct" : "wrong");
       $("quizCorrectAnswer").textContent = currentQuizQuestion.correctValue;
       const card = currentQuizQuestion.item.card;
-      $("quizGrammar").textContent = `${WORD_CLASS_LABELS[card.word_class] || card.word_class} · ${POS_LABELS[card.part_of_speech] || card.part_of_speech}`;
+      const grammar = grammarDisplay(card);
+      $("quizGrammar").textContent = `${grammar.classLabel} · ${grammar.posLabel}`;
       $("quizFeedback").classList.remove("hidden");
       $("quizNextBtn").disabled = true;
 
