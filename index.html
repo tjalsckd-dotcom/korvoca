@@ -260,29 +260,6 @@
       font-weight: 800;
       letter-spacing: -.015em;
     }
-    .korean-audio-group {
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-    .tts-button {
-      flex: 0 0 auto;
-      width: 34px;
-      height: 34px;
-      display: inline-grid;
-      place-items: center;
-      border: 1px solid #d0d5dd;
-      border-radius: 10px;
-      background: #fff;
-      color: #344054;
-      cursor: pointer;
-      font-size: 17px;
-      line-height: 1;
-    }
-    .tts-button:hover { border-color: var(--primary); background: var(--primary-soft); }
-    .tts-button:active { transform: scale(.96); }
-    .tts-button.small { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; }
     .card-row-meaning {
       color: #344054;
       font-size: 13px;
@@ -469,17 +446,7 @@
       line-height: 1.2;
       overflow-wrap: anywhere;
     }
-    .quiz-prompt-audio {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 12px;
-    }
-    .quiz-prompt-audio .tts-button { width: 42px; height: 42px; font-size: 20px; }
-    .quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .quiz-option-wrap { display: flex; align-items: stretch; gap: 7px; min-width: 0; }
-    .quiz-option-wrap .quiz-option { flex: 1 1 auto; min-width: 0; }
-    .quiz-option-wrap .tts-button { align-self: stretch; height: auto; min-height: 64px; }
+    .quiz-option-wrap { display: block; min-width: 0; }
     .quiz-option {
       min-height: 64px;
       display: flex;
@@ -719,7 +686,6 @@
     const QUIZ_PROGRESS_TABLE = "korean_vocab_quiz_progress";
     const QUIZ_ATTEMPTS_TABLE = "korean_vocab_quiz_attempts";
     const SHARED_TAGS_TABLE = "korean_vocab_shared_tags";
-    const AUDIO_BUCKET = "korean-audio";
     const STUDENT_EMAIL_SUFFIX = "@korean-class.example.com";
     const QUIZ_TARGET = { es_to_ko: 0.85, ko_to_es: 0.80 };
 
@@ -825,56 +791,6 @@
         .replaceAll("'", "&#039;");
     }
 
-    let activeAudio = null;
-
-    function stopActiveAudio() {
-      if (!activeAudio) return;
-      activeAudio.pause();
-      activeAudio.currentTime = 0;
-      activeAudio = null;
-    }
-
-    function getCardAudioUrl(card) {
-      if (!card?.audio_path) return "";
-      const { data } = db.storage.from(AUDIO_BUCKET).getPublicUrl(card.audio_path);
-      return data?.publicUrl || "";
-    }
-
-    async function playCardAudio(cardId) {
-      const card = findCard(cardId);
-      if (!card?.audio_path) {
-        showToast("Esta entrada todavía no tiene audio MP3.", true);
-        return;
-      }
-
-      const url = getCardAudioUrl(card);
-      if (!url) {
-        showToast("No se pudo encontrar el archivo de audio.", true);
-        return;
-      }
-
-      stopActiveAudio();
-      const audio = new Audio(url);
-      activeAudio = audio;
-      audio.preload = "auto";
-      audio.addEventListener("ended", () => {
-        if (activeAudio === audio) activeAudio = null;
-      });
-      audio.addEventListener("error", () => {
-        if (activeAudio === audio) activeAudio = null;
-        showToast("No se pudo reproducir el audio.", true);
-      });
-
-      try {
-        await audio.play();
-      } catch (error) {
-        console.error(error);
-        if (activeAudio === audio) activeAudio = null;
-        showToast("El navegador no pudo iniciar el audio.", true);
-      }
-    }
-
-    window.playCardAudio = playCardAudio;
 
     function normalizeText(value) {
       return String(value || "").trim().toLocaleLowerCase("ko-KR").replace(/\s+/g, " ");
@@ -1280,10 +1196,7 @@
         return `
           <article class="card-row ${String(selectedId) === String(card.id) ? "active" : ""}" data-id="${escapeHtml(card.id)}">
             <div class="card-row-title">
-              <span class="korean-audio-group">
-                <span class="korean-word">${escapeHtml(card.korean)}</span>
-                <button class="tts-button small" type="button" data-audio-card-id="${escapeHtml(card.id)}" aria-label="Escuchar ${escapeHtml(card.korean)}" title="${card.audio_path ? "Escuchar audio" : "Audio pendiente"}" ${card.audio_path ? "" : "disabled"}>${card.audio_path ? "🔊" : "🔇"}</button>
-              </span>
+              <span class="korean-word">${escapeHtml(card.korean)}</span>
               <span class="badge ${grammar.cssClass}">${escapeHtml(grammar.wordClass)}</span>
             </div>
             <div class="card-row-meaning">${escapeHtml(card.meaning_es || "Sin significado")}</div>
@@ -1296,12 +1209,6 @@
 
       $("cardList").querySelectorAll(".card-row").forEach(row => {
         row.addEventListener("click", event => {
-          const audioButton = event.target.closest("[data-audio-card-id]");
-          if (audioButton) {
-            event.stopPropagation();
-            playCardAudio(audioButton.dataset.audioCardId);
-            return;
-          }
           const chip = event.target.closest("[data-chip-tag]");
           if (chip) {
             event.stopPropagation();
@@ -1342,8 +1249,7 @@
       .field input,.field select{width:100%;border:1px solid #d0d5dd;border-radius:10px;padding:10px 11px;background:#fff;outline:none}
       .field input:focus,.field select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,87,213,.11)}
       .check-row{display:flex!important;align-items:flex-start;gap:9px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#f9fafb;line-height:1.45;cursor:pointer}
-      .check-row input{width:auto!important;margin:3px 0 0;padding:0;flex:0 0 auto}.audio-box{padding:12px;border:1px solid var(--line);border-radius:12px;background:#f9fafb}
-      .audio-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+      .check-row input{width:auto!important;margin:3px 0 0;padding:0;flex:0 0 auto}
       .hint{color:var(--muted);font-size:12px;margin-top:5px}.share-note{padding:12px 14px;margin-bottom:18px;border-radius:12px;background:#eef2ff;color:#344054;line-height:1.5;font-size:13px}.class-preview{padding:10px 11px;border-radius:10px;background:#f2f4f7;color:#475467;font-weight:800}
       .tag-wrap{margin-top:9px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#f9fafb}.tag-title{color:var(--muted);font-size:12px;font-weight:800;margin-bottom:7px}
       .tag-list{display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow:auto}.tag-button{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:999px;padding:5px 9px;font-size:12px}
@@ -1393,7 +1299,7 @@
           </div>
           <div class="body">
             <div class="meaning">${escapeHtml(card.meaning_es || "—")}</div>
-            <div class="actions"><button class="btn primary" type="button" onclick="window.opener.playCardAudio('${escapeHtml(card.id)}')" ${card.audio_path ? "" : "disabled"}>${card.audio_path ? "🔊 Escuchar" : "🔇 Audio pendiente"}</button>${sharedTagAction}${teacherActions}<button class="btn" type="button" onclick="window.close()">Cerrar</button></div>
+            <div class="actions">${sharedTagAction}${teacherActions}<button class="btn" type="button" onclick="window.close()">Cerrar</button></div>
           </div>
         </article></div>`;
     }
@@ -1526,13 +1432,6 @@
             <div class="hint">Separa varias etiquetas con comas.</div>
             <div class="tag-wrap"><div class="tag-title">Etiquetas existentes</div><div id="popupTagList" class="tag-list"></div></div>
           </div>
-          <div class="field audio-box">
-            <label for="popupAudioFile">Audio de TTSMaker (MP3)</label>
-            <input id="popupAudioFile" type="file" accept=".mp3,audio/mpeg,audio/mp3">
-            <div class="hint">El nombre original del archivo no importa. La aplicación lo guardará y lo enlazará automáticamente con esta entrada.</div>
-            ${card?.audio_path ? `<div class="audio-status"><span>Audio actual disponible</span><button class="btn" type="button" onclick="window.opener.playCardAudio('${escapeHtml(card.id)}')">🔊 Probar</button></div>
-            <label class="check-row" style="margin-top:10px"><input id="popupRemoveAudio" type="checkbox"><span>Eliminar el audio actual al guardar</span></label>` : `<div class="audio-status"><span>Todavía no hay audio para esta entrada.</span></div>`}
-          </div>
           <div class="editor-actions">
             <button id="popupCancelBtn" type="button" class="btn">Cancelar</button>
             <button type="submit" class="btn primary">${isNew ? "Guardar" : "Guardar cambios"}</button>
@@ -1596,36 +1495,6 @@
       render();
     }
 
-    async function uploadCardAudio(cardId, file, previousPath = null) {
-      const path = `cards/${cardId}/${Date.now()}.mp3`;
-      const { error: uploadError } = await db.storage.from(AUDIO_BUCKET).upload(path, file, {
-        upsert: false,
-        contentType: "audio/mpeg",
-        cacheControl: "31536000"
-      });
-      if (uploadError) throw uploadError;
-
-      const { error: updateError } = await db.from(TABLE).update({ audio_path: path }).eq("id", cardId);
-      if (updateError) {
-        await db.storage.from(AUDIO_BUCKET).remove([path]);
-        throw updateError;
-      }
-
-      if (previousPath && previousPath !== path) {
-        const { error: removeError } = await db.storage.from(AUDIO_BUCKET).remove([previousPath]);
-        if (removeError) console.warn("No se pudo borrar el audio anterior:", removeError);
-      }
-      return path;
-    }
-
-    async function removeCardAudio(cardId, path) {
-      const { error: updateError } = await db.from(TABLE).update({ audio_path: null }).eq("id", cardId);
-      if (updateError) throw updateError;
-      if (path) {
-        const { error: removeError } = await db.storage.from(AUDIO_BUCKET).remove([path]);
-        if (removeError) console.warn("No se pudo borrar el archivo de audio:", removeError);
-      }
-    }
 
     async function saveCardFromPopup(cardId) {
       if (!isTeacher || !cardWindow || cardWindow.closed || busy) return;
@@ -1645,19 +1514,6 @@
 
       const teacherTags = parseTags(doc.getElementById("popupTags").value);
 
-      const audioFile = doc.getElementById("popupAudioFile")?.files?.[0] || null;
-      const removeAudio = Boolean(doc.getElementById("popupRemoveAudio")?.checked);
-      if (audioFile) {
-        const isMp3 = audioFile.type === "audio/mpeg" || audioFile.type === "audio/mp3" || /\.mp3$/i.test(audioFile.name);
-        if (!isMp3) {
-          cardWindow.alert("Selecciona un archivo MP3.");
-          return;
-        }
-        if (audioFile.size > 10 * 1024 * 1024) {
-          cardWindow.alert("El archivo MP3 debe pesar menos de 10 MB.");
-          return;
-        }
-      }
 
       const entryType = doc.getElementById("popupEntryType").value;
       const payload = {
@@ -1667,7 +1523,6 @@
         part_of_speech: entryType === "expression" ? null : doc.getElementById("popupPos").value,
         tags: teacherTags
       };
-      const previousCard = cardId ? findCard(cardId) : null;
 
       setBusy(true);
       try {
@@ -1677,12 +1532,6 @@
         if (response.error) throw response.error;
 
         const savedId = response.data.id;
-        if (audioFile) {
-          await uploadCardAudio(savedId, audioFile, previousCard?.audio_path || null);
-        } else if (removeAudio && previousCard?.audio_path) {
-          await removeCardAudio(savedId, previousCard.audio_path);
-        }
-
         selectedId = String(savedId);
         await loadCards();
         showToast(cardId ? "La entrada se actualizó." : "La entrada se guardó.");
@@ -1705,10 +1554,6 @@
       if (!confirmed) return;
 
       setBusy(true);
-      if (card.audio_path) {
-        const { error: audioError } = await db.storage.from(AUDIO_BUCKET).remove([card.audio_path]);
-        if (audioError) console.warn("No se pudo borrar el audio de la entrada:", audioError);
-      }
       const { error } = await db.from(TABLE).delete().eq("id", card.id);
       setBusy(false);
       if (error) {
@@ -2090,32 +1935,19 @@
       $("quizDirectionLabel").textContent = currentQuizQuestion.isSessionRetry
         ? `${directionName(currentQuizQuestion.direction)} · repetición`
         : directionName(currentQuizQuestion.direction);
-      if (currentQuizQuestion.direction === "ko_to_es") {
-        const promptCard = currentQuizQuestion.item.card;
-        $("quizPrompt").innerHTML = `<span class="quiz-prompt-audio"><span>${escapeHtml(currentQuizQuestion.prompt)}</span><button class="tts-button" type="button" data-audio-card-id="${escapeHtml(promptCard.id)}" aria-label="Escuchar pronunciación" title="${promptCard.audio_path ? "Escuchar audio" : "Audio pendiente"}" ${promptCard.audio_path ? "" : "disabled"}>${promptCard.audio_path ? "🔊" : "🔇"}</button></span>`;
-        $("quizPrompt").querySelector("[data-audio-card-id]")?.addEventListener("click", event => {
-          playCardAudio(event.currentTarget.dataset.audioCardId);
-        });
-      } else {
-        $("quizPrompt").textContent = currentQuizQuestion.prompt;
-      }
+      $("quizPrompt").textContent = currentQuizQuestion.prompt;
       $("quizFeedback").classList.add("hidden");
       $("quizNextBtn").disabled = false;
 
       const letters = ["A", "B", "C", "D"];
-      const koreanOptions = currentQuizQuestion.direction === "es_to_ko";
       $("quizOptions").innerHTML = currentQuizQuestion.options.map((option, index) => `
         <div class="quiz-option-wrap">
           <button class="quiz-option" type="button" data-option-index="${index}">
             <span class="quiz-option-letter">${letters[index]}</span><span>${escapeHtml(option.value)}</span>
           </button>
-          ${koreanOptions ? `<button class="tts-button" type="button" data-audio-card-id="${escapeHtml(option.cardId)}" aria-label="Escuchar ${escapeHtml(option.value)}" title="${findCard(option.cardId)?.audio_path ? "Escuchar audio" : "Audio pendiente"}" ${findCard(option.cardId)?.audio_path ? "" : "disabled"}>${findCard(option.cardId)?.audio_path ? "🔊" : "🔇"}</button>` : ""}
         </div>`).join("");
       $("quizOptions").querySelectorAll("[data-option-index]").forEach(button => {
         button.addEventListener("click", () => answerQuizQuestion(Number(button.dataset.optionIndex)));
-      });
-      $("quizOptions").querySelectorAll("[data-audio-card-id]").forEach(button => {
-        button.addEventListener("click", event => playCardAudio(event.currentTarget.dataset.audioCardId));
       });
       updateQuizProgressDisplay();
     }
